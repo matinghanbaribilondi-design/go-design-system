@@ -1,0 +1,15 @@
+{
+  "name": "global-design-system-plugin",
+  "version": "0.10.0",
+  "private": true,
+  "description": "Figma <-> design.md compiler with a pluggable Reference engine",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "assemble": "node scripts/build.mjs --assemble-only",
+    "build:no-engine": "node scripts/build.mjs --no-engine",
+    "sync-engine": "node scripts/sync-fig-engine.mjs",
+    "sync-engine:build": "node scripts/sync-fig-engine.mjs --build",
+    "test": "node tests/core.test.js && node tests/figma-mock.test.js"
+  },
+  "devDependencies": { "esbuild": "^0.25.0" }
+}

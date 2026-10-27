@@ -1,0 +1,29 @@
+{
+  "id": "fig-engine",
+  "contract": 1,
+  "version": "1.0.0",
+  "renderer": "html-generator",
+  "source": {
+    "figEngine": {
+      "path": "C:\\Users\\matin.ghanbari\\Desktop\\git hub\\figma-ai\\fig-engine",
+      "version": "1.0.0",
+      "commit": "bfa44d1"
+    },
+    "htmlGenerator": {
+      "path": "C:\\Users\\matin.ghanbari\\Desktop\\git hub\\figma-ai\\html-generator",
+      "version": "1.0.0",
+      "commit": "bfa44d1"
+    }
+  },
+  "syncedAt": "2026-10-27T06:45:01.299Z",
+  "filesHash": "b8a275eb0acc",
+  "files": 39,
+  "entries": [
+    "html-generator/src/plugin/converter/index.ts",
+    "html-generator/src/plugin/converter/utils.ts",
+    "html-generator/src/plugin/variables/variable-collector.ts",
+    "html-generator/src/generator/html-generator.ts",
+    "html-generator/src/generator/css-generator.ts",
+    "html-generator/src/shared/component-registry.ts"
+  ]
+}

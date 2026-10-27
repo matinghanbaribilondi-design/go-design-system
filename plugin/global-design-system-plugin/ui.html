@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Global Design System</title>
+<style>
+:root{color-scheme:light;--bg:#fff;--surface:#fafafa;--subtle:#f5f5f7;--text:#111;--muted:#74747b;--faint:#9999a1;--line:#e7e7e9;--border:#d5d5da;--accent:#111;--success:#287a50;--danger:#a12f2f;--radius:8px}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.45 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid #555;outline-offset:2px}
+.app{height:100vh;max-width:820px;margin:0 auto;padding:0 28px;display:flex;flex-direction:column}
+.top{flex:none;height:62px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);gap:12px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:-.02em}.mark{width:25px;height:25px;background:#111;color:#fff;display:grid;place-items:center;border-radius:6px}.mark svg{width:17px;height:17px}
+.file-pill{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px;min-width:0}.file-pill span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}.dot{width:6px;height:6px;border-radius:50%;background:var(--success);flex:none}
+main{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;scrollbar-width:thin}
+.intro{flex:none;padding:24px 0 16px}.eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:7px}h1{font-size:23px;letter-spacing:-.04em;line-height:1.15;font-weight:600;margin:0 0 7px}.intro p{margin:0;color:var(--muted);font-size:13px;max-width:600px}
+.steps{flex:none;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px}
+.step{display:flex;align-items:center;gap:8px;color:var(--faint);font-size:12px;background:none;border:0;padding:0;text-align:left;white-space:nowrap}.num{width:23px;height:23px;border:1px solid var(--border);border-radius:50%;display:grid;place-items:center;background:#fff;font-size:11px;flex:none}.step.active{color:var(--text);font-weight:600}.step.active .num{border-color:var(--text)}.step.done{color:var(--muted)}.step.done .num{background:#111;color:#fff;border-color:#111}.step.done{cursor:pointer}
+.step-line{flex:1;min-width:10px;height:1px;background:var(--line)}.step-line.done{background:#111}
+.panel{display:none;padding-bottom:12px}.panel.active{display:block}
+.panel-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:14px}.panel-head h2{font-size:16px;letter-spacing:-.025em;margin:0 0 4px;font-weight:600}.panel-head p{font-size:12px;color:var(--muted);margin:0}.count{font-size:11px;color:var(--muted);white-space:nowrap}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}.search{width:100%;max-width:290px;border:1px solid var(--line);background:var(--surface);border-radius:7px;height:33px;padding:0 10px;color:var(--text)}.search::placeholder{color:var(--faint)}.text-btn{border:0;background:transparent;color:var(--muted);padding:5px 4px;font-size:12px}.text-btn:hover{color:var(--text)}
+.list{border-top:1px solid var(--line)}.item{min-height:54px;display:flex;align-items:center;gap:11px;padding:10px 8px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}.item:hover{background:var(--surface)}.check{width:16px;height:16px;border:1px solid #c9c9cf;border-radius:4px;display:grid;place-items:center;flex:none}.item.selected .check,.ref-card.selected .check{background:#111;border-color:#111}.item.selected .check:after,.ref-card.selected .check:after{content:"";width:7px;height:4px;border:solid #fff;border-width:0 0 1.5px 1.5px;transform:rotate(-45deg) translate(1px,-1px)}
+.item-main{flex:1;min-width:0}.item-title{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.item-meta{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tag{font-size:10px;color:var(--muted);border:1px solid var(--line);padding:3px 6px;border-radius:4px;white-space:nowrap;flex:none}.tag.rec{color:#1f5e3e;border-color:#cfe3d8;background:#f2f9f5}
+.mini-icon{width:28px;height:28px;display:grid;place-items:center;border:1px solid var(--line);border-radius:6px;color:#555;flex:none;font-size:12px}
+.info{margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:10px 12px;color:var(--muted);font-size:11px;display:flex;gap:8px;align-items:flex-start;line-height:1.5}.info strong{color:var(--text);font-weight:500}.info .i{color:var(--faint);flex:none}
+.ref-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.ref-card{border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;align-items:flex-start;gap:10px;cursor:pointer;min-height:84px;user-select:none;background:#fff}.ref-card:hover{background:var(--surface)}.ref-card.selected{border-color:#777;box-shadow:inset 0 0 0 1px #777;background:#fff}.ref-card .check{margin-top:2px}.ref-card h3{font-size:12px;font-weight:600;margin:0 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ref-card p{font-size:11px;color:var(--muted);margin:0}.ref-card .tag{margin-left:auto}
+.preview{height:126px;background:var(--subtle);border:1px solid var(--line);border-radius:6px;margin-top:8px;display:grid;place-items:center;overflow:hidden}.preview img{display:block;max-width:100%;max-height:100%;width:auto;height:auto}.preview .ph{display:flex;gap:6px;align-items:center;width:100%;height:100%;padding:10px}.preview .ph .block{height:28px;width:28px;background:#ddd;border-radius:3px;flex:none}.preview .ph .lines{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}.preview .ph .lines div{display:block;height:6px;background:#d4d4d8;border-radius:2px}.preview .ph .lines .dark{background:#333;width:72%}.preview .ph .lines div:nth-child(2){width:50%}.preview .ph .lines div:nth-child(3){width:38%}.preview .nothumb{font-size:10px;color:var(--faint)}
+.empty{border:1px dashed var(--border);border-radius:8px;padding:22px;text-align:center;color:var(--muted);font-size:12px;margin-top:8px}
+.foot{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding:14px 0}.foot.hide{display:none}.foot-note{font-size:11px;color:var(--muted);max-width:360px}.actions{display:flex;gap:8px}.btn{height:34px;padding:0 13px;border:1px solid var(--border);border-radius:7px;background:#fff;color:#222;font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:6px}.btn:hover{background:var(--subtle)}.btn.primary{background:#111;color:#fff;border-color:#111}.btn.primary:hover{background:#333}.btn:disabled{opacity:.35;cursor:not-allowed}
+.progress-wrap{min-height:330px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:10px 0 18px}.ring{width:140px;height:140px;position:relative;margin-bottom:20px}.ring svg{width:100%;height:100%;transform:rotate(-90deg)}.ring .track{fill:none;stroke:var(--subtle);stroke-width:5}.ring .progress{fill:none;stroke:#111;stroke-width:5;stroke-linecap:round;stroke-dasharray:408.4;stroke-dashoffset:408.4;transition:stroke-dashoffset .25s ease}.percent{position:absolute;inset:0;display:grid;place-content:center}.percent strong{font-size:29px;letter-spacing:-.05em;font-weight:500}.percent span{font-size:10px;color:var(--muted);margin-top:1px;text-align:center}
+.progress-wrap h2{font-size:16px;margin:0 0 5px;font-weight:600}.progress-sub{font-size:12px;color:var(--muted);margin:0 0 16px;max-width:420px}.task-list{width:min(380px,100%);text-align:left;border-top:1px solid var(--line)}.task{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--line);font-size:11px;color:var(--faint)}.task.current{color:var(--text);font-weight:500}.task.done{color:var(--muted)}.task-mark{width:16px;height:16px;border:1px solid var(--border);border-radius:50%;display:grid;place-items:center;font-size:9px;flex:none}.task.done .task-mark{background:#111;border-color:#111;color:#fff}.task.current .task-mark{border-color:#111}.task.fail .task-mark{border-color:var(--danger);color:var(--danger)}
+.build-msg{margin-top:14px;max-width:420px;font-size:12px;color:var(--danger);display:none}.build-msg.show{display:block}
+.complete{min-height:330px;display:flex;align-items:center;justify-content:center;text-align:center;padding:14px 0 20px}.complete-inner{max-width:520px;width:100%}.success-icon{width:48px;height:48px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;margin:0 auto 15px}.success-icon svg{width:22px;height:22px}.complete h2{font-size:21px;letter-spacing:-.04em;margin:0 0 6px}.complete p{font-size:12px;color:var(--muted);margin:0 auto 16px;max-width:400px}
+.file-list{border:1px solid var(--line);border-radius:8px;text-align:left;margin:0 0 16px;overflow:hidden;max-height:290px;overflow-y:auto}.file-row{display:flex;align-items:center;gap:9px;padding:8px 11px;border-bottom:1px solid var(--line);font-size:11px}.file-row:last-child{border-bottom:0}.filetype{width:26px;height:24px;border-radius:5px;background:var(--subtle);display:grid;place-items:center;color:#555;font-size:8px;font-weight:700;flex:none;letter-spacing:.03em}.file-row .fp{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.file-row small{color:var(--muted);flex:none}.file-group{padding:6px 11px;background:var(--surface);border-bottom:1px solid var(--line);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.completion-actions{display:flex;justify-content:center;gap:8px}
+.grip{position:fixed;right:0;bottom:0;width:18px;height:18px;z-index:60;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 45%,var(--border) 45%,var(--border) 58%,transparent 58%,transparent 70%,var(--border) 70%,var(--border) 83%,transparent 83%)}
+.grip:hover,.grip.drag{background:linear-gradient(135deg,transparent 45%,var(--accent) 45%,var(--accent) 58%,transparent 58%,transparent 70%,var(--accent) 70%,var(--accent) 83%,transparent 83%)}
+@media(min-width:1000px){.app{max-width:1180px}.ref-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.hide{display:none!important}
+@media(max-width:600px){.app{padding:0 16px}.intro{padding-top:18px}.steps{gap:6px}.step{gap:5px;font-size:10px}.step-line{min-width:6px}.num{width:20px;height:20px;font-size:10px}.ref-grid{grid-template-columns:1fr}.panel-head{align-items:flex-start;flex-direction:column;gap:5px}.toolbar .search{max-width:none}.foot-note{max-width:140px}.ring{width:128px;height:128px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="3.5" width="10" height="10" rx="2"/><rect x="10.5" y="10.5" width="10" height="10" rx="2"/></svg></span>Global Design System</div>
+    <div class="file-pill"><span class="dot" id="fileDot"></span><span id="filePill">Connecting to Figma…</span></div>
+  </div>
+  <main>
+    <div class="intro"><div class="eyebrow">Design system builder</div><h1 id="pageTitle">Choose your source</h1><p id="pageDesc">Select what the plugin should read from your current Figma file. Pages come from the file; recommended sources are preselected.</p></div>
+    <div class="steps" aria-label="Workflow progress">
+      <button class="step active" data-step="0" type="button"><span class="num">1</span><span>Source</span></button>
+      <i class="step-line" aria-hidden="true"></i>
+      <button class="step" data-step="1" type="button"><span class="num">2</span><span>References</span></button>
+      <i class="step-line" aria-hidden="true"></i>
+      <button class="step" data-step="2" type="button"><span class="num">3</span><span>Build</span></button>
+      <i class="step-line" aria-hidden="true"></i>
+      <button class="step" data-step="3" type="button"><span class="num">4</span><span>Download</span></button>
+    </div>
+
+    <section class="panel active" id="panel0">
+      <div class="panel-head"><div><h2>What should we include?</h2><p>Choose pages and design-system assets. You can adjust them before building.</p></div><div class="count" id="sourceCount">0 sources selected</div></div>
+      <div class="toolbar"><input class="search" id="searchSource" placeholder="Search pages and assets…" aria-label="Search sources"><button class="text-btn" id="srcRecommended" type="button">Recommended</button><button class="text-btn" id="srcAll" type="button">Select all</button></div>
+      <div class="list" id="sourceList"></div>
+      <div class="info"><span class="i">ⓘ</span><span><strong>Pages come from this file.</strong> Pick the pages that represent the system, not every exploration. Component HTML and reference frames are rendered by the fig-engine module; tokens and component structure stay separate sources in the output.</span></div>
+    </section>
+
+    <section class="panel" id="panel1">
+      <div class="panel-head"><div><h2>Choose reference pages</h2><p>Selected frames become standalone HTML examples inside the package.</p></div><div class="count" id="refCount">0 references selected</div></div>
+      <div class="toolbar"><input class="search" id="searchRefs" placeholder="Search reference frames…" aria-label="Search references"><button class="text-btn" id="refsRecommended" type="button">Recommended</button><button class="text-btn" id="refsNone" type="button">None</button></div>
+      <div class="ref-grid" id="refGrid"></div>
+      <div class="empty hide" id="refEmpty">No top-level frames on the selected pages. Go back and add a page with frames.</div>
+      <div class="info"><span class="i">ⓘ</span><span>Reference HTML is visual evidence, not the source of truth for token values. If you don't need examples, select <strong>None</strong> and continue without a references folder.</span></div>
+    </section>
+
+    <section class="panel" id="panel2">
+      <div class="progress-wrap">
+        <div class="ring"><svg viewBox="0 0 150 150" aria-label="Build progress"><circle class="track" cx="75" cy="75" r="65"></circle><circle class="progress" id="ringProgress" cx="75" cy="75" r="65"></circle></svg><div class="percent"><strong id="percent">0%</strong><span id="percentLabel">COMPLETE</span></div></div>
+        <h2 id="buildTitle">Preparing your design system</h2><p class="progress-sub" id="buildSub">Reading selected Figma sources…</p>
+        <div class="task-list" id="taskList">
+          <div class="task current" data-task="0"><span class="task-mark">1</span><span>Reading selected pages and assets</span></div>
+          <div class="task" data-task="1"><span class="task-mark">2</span><span>Mapping variables and token aliases</span></div>
+          <div class="task" data-task="2"><span class="task-mark">3</span><span>Collecting components, variants and states</span></div>
+          <div class="task" data-task="3"><span class="task-mark">4</span><span>Rendering references and component HTML with fig-engine</span></div>
+          <div class="task" data-task="4"><span class="task-mark">5</span><span>Packaging files for AI agents</span></div>
+        </div>
+        <div class="build-msg" id="buildMsg"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel3">
+      <div class="complete"><div class="complete-inner">
+        <div class="success-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 12 4.5 4.5L19 7"/></svg></div>
+        <h2>Your design system is ready</h2><p id="readySub">The package is organized for AI agents, with token definitions, component data, reference examples and source traceability.</p>
+        <div class="file-list" id="fileList"></div>
+        <div class="completion-actions"><button class="btn" id="rebuild" type="button">Build again</button><button class="btn primary" id="download" type="button">Download ZIP ↓</button></div>
+      </div></div>
+    </section>
+  </main>
+  <div class="foot" id="foot"><div class="foot-note" id="footNote">Recommended selections are ready to use.</div><div class="actions"><button class="btn" id="back" type="button" disabled>Back</button><button class="btn primary" id="next" type="button">Continue →</button></div></div>
+</div>
+<div class="grip" id="grip" title="Drag to resize the plugin window"></div>
+<script>
+const $ = id => document.getElementById(id);
+const send = (type, o) => parent.postMessage({ pluginMessage: Object.assign({ type }, o) }, '*');
+const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'design-system';
+
+const ASSETS = [
+  { id: 'tokens', title: 'Variables & tokens', meta: 'Collections, aliases, modes and token values', icon: '◈', rec: true },
+  { id: 'styles', title: 'Styles', meta: 'Text, color and effect styles', icon: 'Aa', rec: true },
+  { id: 'components', title: 'Component library', meta: 'Component sets, properties, variants and HTML', icon: '◇', rec: true },
+  { id: 'icons', title: 'Icons', meta: 'Icon components and vector assets', icon: '✳', rec: false }
+];
+
+const S = {
+  step: 0, maxStep: 0, loaded: false,
+  fileName: '', pages: [], collections: [], comps: [], counts: {},
+  saved: null, engine: null,
+  selPages: new Set(), selAssets: new Set(['tokens', 'styles', 'components']),
+  frames: [], selRefs: new Set(), recommendedRefs: new Set(), thumbs: {},
+  progress: 0, building: false, built: false, analysis: null,
+  files: [], incoming: null, errors: [],
+  srcQuery: '', refQuery: ''
+};
+
+const COPY = [
+  ['Choose your source', 'Select what the plugin should read from your current Figma file. Pages come from the file; recommended sources are preselected.'],
+  ['Choose reference pages', 'Selected frames become standalone HTML examples inside the package, rendered by the fig-engine module.'],
+  ['Building your design system', 'Every step below is driven by real work in Figma, not a timer. You can leave this window open while it runs.'],
+  ['Download the package', 'The package is organized for AI agents, with token definitions, component HTML, reference examples and source traceability.']
+];
+
+function setStep(i) {
+  S.step = i;
+  S.maxStep = Math.max(S.maxStep, i);
+  if (i !== 1 && PREV.q.length) { PREV.q.forEach(id => PREV.seen.delete(id)); PREV.q = []; }
+  document.querySelectorAll('.step').forEach(el => {
+    const n = Number(el.dataset.step);
+    el.classList.toggle('active', n === i);
+    el.classList.toggle('done', n < i || (n < S.maxStep && n !== i));
+  });
+  document.querySelectorAll('.step-line').forEach((el, k) => el.classList.toggle('done', k < i));
+  document.querySelectorAll('.panel').forEach((el, n) => el.classList.toggle('active', n === i));
+  $('pageTitle').textContent = COPY[i][0];
+  $('pageDesc').textContent = COPY[i][1];
+  $('back').disabled = i === 0 || S.building;
+  $('next').classList.toggle('hide', i >= 3);
+  $('foot').classList.toggle('hide', i >= 3);
+  if (i === 1) loadFrames();
+  if (i === 2) startBuild();
+  const main = document.querySelector('main');
+  if (main) main.scrollTop = 0;
+  drawFoot();
+}
+
+function drawFoot() {
+  const n = $('next');
+  if (S.step === 0) { n.textContent = 'References →'; n.disabled = S.selPages.size === 0; $('footNote').textContent = S.selPages.size ? `${S.selPages.size} page(s) and ${S.selAssets.size} asset group(s) selected.` : 'Select at least one page to continue.'; }
+  if (S.step === 1) { n.textContent = 'Build →'; n.disabled = false; $('footNote').textContent = S.selRefs.size ? `${S.selRefs.size} reference frame(s) will be exported as HTML.` : 'Building without reference frames.'; }
+  if (S.step === 2) { n.textContent = 'Building…'; n.disabled = true; $('footNote').textContent = 'Extraction is running in the plugin sandbox.'; }
+}
+
+// ---------- Step 1: source ----------
+function pageRow(p) {
+  const sel = S.selPages.has(p.id);
+  const tag = p.recommendation === 'Recommended' ? '<span class="tag rec">Recommended</span>' : p.recommendation === 'Excluded' ? '<span class="tag">Excluded</span>' : '<span class="tag">Review</span>';
+  return `<div class="item ${sel ? 'selected' : ''}" data-kind="page" data-id="${esc(p.id)}"><span class="check"></span><span class="mini-icon">▦</span><div class="item-main"><div class="item-title">${esc(p.name)}</div><div class="item-meta">Page · ${p.frames} top-level item(s) · ${p.components} component(s)</div></div>${tag}</div>`;
+}
+function assetRow(a) {
+  const sel = S.selAssets.has(a.id), n = a.id === 'tokens' ? S.counts.variables : a.id === 'styles' ? S.counts.styles : a.id === 'components' ? S.counts.components : null;
+  const meta = n == null ? a.meta : `${a.meta} · ${n} available`;
+  return `<div class="item ${sel ? 'selected' : ''}" data-kind="asset" data-id="${a.id}"><span class="check"></span><span class="mini-icon">${a.icon}</span><div class="item-main"><div class="item-title">${esc(a.title)}</div><div class="item-meta">${esc(meta)}</div></div><span class="tag ${a.rec ? 'rec' : ''}">${a.rec ? 'Recommended' : 'Optional'}</span></div>`;
+}
+function drawSources() {
+  const q = S.srcQuery.toLowerCase();
+  const pages = S.pages.filter(p => !q || p.name.toLowerCase().includes(q));
+  const assets = ASSETS.filter(a => !q || (a.title + ' ' + a.meta).toLowerCase().includes(q));
+  $('sourceList').innerHTML = pages.map(pageRow).join('') + (assets.length ? `<div class="file-group">Design-system assets</div>` + assets.map(assetRow).join('') : '');
+  $('sourceCount').textContent = `${S.selPages.size} page(s) · ${S.selAssets.size} asset group(s)`;
+  document.querySelectorAll('#sourceList .item').forEach(el => el.onclick = () => {
+    const id = el.dataset.id;
+    if (el.dataset.kind === 'page') { if (S.selPages.has(id)) S.selPages.delete(id); else S.selPages.add(id); S.frames = []; S.selRefs.clear(); }
+    else { if (S.selAssets.has(id)) S.selAssets.delete(id); else S.selAssets.add(id); }
+    drawSources(); drawFoot();
+  });
+  drawFoot();
+}
+
+// ---------- Step 2: references ----------
+function loadFrames() {
+  if (!S.selPages.size) { S.frames = []; drawRefs(); return; }
+  send('frames', { pageIds: [...S.selPages], compNames: S.comps.slice(0, 60).map(c => c.name), counts: { components: S.counts.components || 0, tokens: S.counts.variables || 0, styles: S.counts.styles || 0 } });
+}
+function previewHtml(id) {
+  const t = S.thumbs[id];
+  if (t) return `<img src="${esc(t)}" alt="">`;
+  if (t === '') return '<span class="nothumb">No preview</span>';
+  return '<div class="ph"><div class="block"></div><div class="lines"><div class="dark"></div><div></div><div></div></div></div>';
+}
+function refCard(f) {
+  const sel = S.selRefs.has(f.id);
+  const meta = `${esc(f.page)} · ${f.w}×${f.h}${f.instances != null ? ' · ' + f.instances + ' instance(s)' : ''}`;
+  return `<div class="ref-card ${sel ? 'selected' : ''}" data-id="${esc(f.id)}"><span class="check"></span><div class="item-main"><h3>${esc(f.name)}</h3><p>${meta}</p><div class="preview" data-preview="${esc(f.id)}">${previewHtml(f.id)}</div></div><span class="tag">Frame</span></div>`;
+}
+const PREV = { q: [], busy: 0, seen: new Set(), io: null };
+function paintPreview(el, url) {
+  if (url) { const img = new Image(); img.alt = ''; img.src = url; el.innerHTML = ''; el.appendChild(img); }
+  else el.innerHTML = '<span class="nothumb">No preview</span>';
+}
+function wantPreview(id) {
+  if (!id || S.thumbs[id] !== undefined || PREV.seen.has(id)) return;
+  PREV.seen.add(id); PREV.q.push(id); pumpPreview();
+}
+function pumpPreview() {
+  if (S.step !== 1) return;
+  while (PREV.busy < 2 && PREV.q.length) {
+    PREV.busy++;
+    send('frame-thumb', { id: PREV.q.shift() });
+  }
+}
+function observePreviews() {
+  const cards = [...document.querySelectorAll('#refGrid .preview')].filter(el => S.thumbs[el.dataset.preview] === undefined && !PREV.seen.has(el.dataset.preview));
+  if (!cards.length) return;
+  cards.slice(0, 6).forEach(el => wantPreview(el.dataset.preview));
+  if (PREV.io) PREV.io.disconnect();
+  if (!('IntersectionObserver' in window)) return;
+  PREV.io = new IntersectionObserver(entries => entries.forEach(en => {
+    if (!en.isIntersecting) return;
+    PREV.io.unobserve(en.target);
+    wantPreview(en.target.dataset.preview);
+  }), { root: document.querySelector('main'), rootMargin: '320px 0px' });
+  cards.slice(6).forEach(el => PREV.io.observe(el));
+}
+function drawRefs() {
+  const q = S.refQuery.toLowerCase();
+  const list = S.frames.filter(f => !q || (f.name + ' ' + f.page).toLowerCase().includes(q));
+  $('refGrid').innerHTML = list.map(refCard).join('');
+  $('refEmpty').classList.toggle('hide', list.length > 0);
+  $('refCount').textContent = `${S.selRefs.size} reference(s) selected`;
+  document.querySelectorAll('#refGrid .ref-card').forEach(el => el.onclick = () => {
+    const id = el.dataset.id;
+    if (S.selRefs.has(id)) S.selRefs.delete(id); else S.selRefs.add(id);
+    drawRefs(); drawFoot();
+  });
+  observePreviews();
+  drawFoot();
+}
+
+// ---------- Step 3: build ----------
+const TASKS = [
+  [0, 27, 'Reading selected pages and assets'],
+  [27, 58, 'Mapping variables and token aliases'],
+  [58, 80, 'Collecting components, variants and states'],
+  [80, 97, 'Rendering references and component HTML with fig-engine'],
+  [97, 101, 'Packaging files for AI agents']
+];
+function drawProgress() {
+  const p = Math.max(0, Math.min(100, Math.round(S.progress)));
+  $('percent').textContent = p + '%';
+  $('ringProgress').style.strokeDashoffset = String(408.4 - 408.4 * p / 100);
+  const tasks = document.querySelectorAll('#taskList .task');
+  tasks.forEach(el => {
+    const n = Number(el.dataset.task), t = TASKS[n];
+    el.classList.remove('current', 'done');
+    if (p >= t[1]) el.classList.add('done');
+    else if (p >= t[0]) el.classList.add('current');
+    const mark = el.querySelector('.task-mark');
+    if (mark) mark.textContent = p >= t[1] ? '✓' : String(n + 1);
+  });
+  const active = TASKS.findIndex(t => p >= t[0] && p < t[1]);
+  $('buildSub').textContent = active >= 0 ? TASKS[active][2] + '…' : (p >= 100 ? 'Done.' : 'Starting…');
+  $('buildTitle').textContent = p >= 100 ? 'Package ready' : 'Preparing your design system';
+}
+function startBuild() {
+  if (S.building) return;
+  if (!S.selPages.size) { setStep(0); return; }
+  S.building = true; S.built = false; S.files = []; S.incoming = {}; S.errors = [];
+  S.progress = 0; $('buildMsg').classList.remove('show'); $('buildMsg').textContent = ''; $('percentLabel').textContent = 'COMPLETE';
+  drawProgress(); drawFoot();
+  send('analyze', { sel: selObj(), ctx: { mode: 'skip' }, dd: { include: [], components: {} } });
+}
+
+function selObj() {
+  const hasTokens = S.selAssets.has('tokens');
+  const hasComponents = S.selAssets.has('components');
+  const hasIcons = S.selAssets.has('icons');
+  return {
+    pageIds: [...S.selPages],
+    collectionIds: hasTokens ? S.collections.map(c => c.id) : [],
+    categories: null,
+    styles: S.selAssets.has('styles'),
+    styleIds: [],
+    libStyles: true,
+    icons: hasIcons,
+    iconSvg: hasIcons,
+    componentIds: hasComponents ? null : [],
+    componentHtml: hasComponents,
+    iconPack: '',
+    refFrameIds: [...S.selRefs],
+    refEmbedImages: false,
+    refMatchColors: true,
+    refEngine: 'fig-engine',
+    depPolicy: 'auto_include',
+    sections: {}
+  };
+}
+
+// ---------- Step 4: files ----------
+function b64bytes(b) { const s = atob(b), a = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; }
+function sizeOf(f) { const n = f.binary ? f.content.length * 0.75 : new TextEncoder().encode(f.content).length; return n < 1024 ? Math.max(1, Math.round(n)) + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(1) + ' MB'; }
+const TYPE = p => /\.md$/.test(p) ? 'MD' : /\.css$/.test(p) ? 'CSS' : /\.json$/.test(p) ? 'JSON' : /\.html$/.test(p) ? 'HTML' : /\.(png|jpe?g|gif|webp)$/.test(p) ? 'IMG' : /\.svg$/.test(p) ? 'SVG' : /\.(woff2?|ttf|otf)$/.test(p) ? 'FONT' : /\.zip$/.test(p) ? 'ZIP' : 'FILE';
+function fileGroups(files) {
+  const groups = [];
+  const root = files.filter(f => !f.path.includes('/'));
+  const dirs = [...new Set(files.filter(f => f.path.includes('/')).map(f => f.path.split('/')[0]))].sort();
+  if (root.length) groups.push({ name: 'Package root', files: root });
+  dirs.forEach(d => groups.push({ name: d + '/', files: files.filter(f => f.path.startsWith(d + '/')) }));
+  return groups;
+}
+function drawFiles() {
+  const files = S.files.slice().sort((a, b) => a.path.localeCompare(b.path));
+  $('fileList').innerHTML = fileGroups(files).map(g => `<div class="file-group">${esc(g.name)} · ${g.files.length} file(s)</div>` + g.files.map(f => `<div class="file-row"><span class="filetype">${TYPE(f.path)}</span><span class="fp">${esc(f.path)}</span><small>${sizeOf(f)}</small></div>`).join('')).join('') || '<div class="file-row"><span class="fp">No files generated.</span></div>';
+  const bytes = files.reduce((n, f) => n + (f.binary ? f.content.length * 0.75 : new TextEncoder().encode(f.content).length), 0);
+  const an = S.analysis || {};
+  const s = an.summary || {};
+  const bits = [`${files.length} files`, bytes < 1048576 ? (bytes / 1024).toFixed(1) + ' KB' : (bytes / 1048576).toFixed(1) + ' MB'];
+  if (s.tokens != null) bits.push(`${s.tokens} tokens`);
+  if (s.components != null) bits.push(`${s.components} components`);
+  if (s.componentsHtml != null) bits.push(`${s.componentsHtml} component HTML`);
+  if (s.refs != null) bits.push(`${s.refs} references`);
+  $('readySub').textContent = bits.join(' · ');
+  drawFoot();
+}
+
+// ---------- ZIP ----------
+const crcT = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc = b => { let c = -1; for (const x of b) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (~c) >>> 0; };
+function zip(files) {
+  const e = new TextEncoder(), parts = [], cd = []; let off = 0;
+  for (const f of files) {
+    const nm = e.encode(f.path), da = f.binary ? b64bytes(f.content) : e.encode(f.content), c = crc(da);
+    const l = new DataView(new ArrayBuffer(30)); l.setUint32(0, 0x04034b50, true); l.setUint16(4, 20, true); l.setUint16(6, 0x0800, true); l.setUint16(12, 0x21, true); l.setUint32(14, c, true); l.setUint32(18, da.length, true); l.setUint32(22, da.length, true); l.setUint16(26, nm.length, true); parts.push(l.buffer, nm, da);
+    const h = new DataView(new ArrayBuffer(46)); h.setUint32(0, 0x02014b50, true); h.setUint16(4, 20, true); h.setUint16(6, 20, true); h.setUint16(8, 0x0800, true); h.setUint16(14, 0x21, true); h.setUint32(16, c, true); h.setUint32(20, da.length, true); h.setUint32(24, da.length, true); h.setUint16(28, nm.length, true); h.setUint32(42, off, true); cd.push(h.buffer, nm); off += 30 + nm.length + da.length;
+  }
+  const cs = cd.reduce((a, b) => a + b.byteLength, 0), z = new DataView(new ArrayBuffer(22)); z.setUint32(0, 0x06054b50, true); z.setUint16(8, files.length, true); z.setUint16(10, files.length, true); z.setUint32(12, cs, true); z.setUint32(16, off, true);
+  return new Blob(parts.concat(cd, [z.buffer]), { type: 'application/zip' });
+}
+function dl(name, blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1500); }
+$('download').onclick = () => { if (!S.files.length) return; dl(slug(S.fileName) + '-design-system.zip', zip(S.files.map(f => ({ path: f.path, content: f.content, binary: f.binary })))); };
+$('rebuild').onclick = () => { S.built = false; S.building = false; S.files = []; S.incoming = {}; S.analysis = null; $('fileList').innerHTML = ''; $('readySub').textContent = COPY[3][1]; setStep(0); };
+
+// ---------- Messages ----------
+function handle(m) {
+  const d = m.data || {};
+  if (m.type === 'discover') {
+    S.loaded = true; S.fileName = d.fileName || 'Figma file'; S.pages = d.pages || []; S.collections = d.collections || []; S.comps = d.comps || []; S.counts = d.counts || {}; S.saved = d.saved || null; S.engine = d.engine || null;
+    $('filePill').textContent = S.fileName;
+    const savedPages = S.saved && Array.isArray(S.saved.pageIds) ? S.saved.pageIds.filter(id => S.pages.some(p => p.id === id)) : null;
+    const initial = savedPages && savedPages.length ? savedPages : S.pages.filter(p => p.recommendation === 'Recommended').map(p => p.id);
+    S.selPages = new Set(initial);
+    if (S.saved) {
+      const hasTokens = Array.isArray(S.saved.collectionIds) ? S.saved.collectionIds.length > 0 : true;
+      const hasComps = Array.isArray(S.saved.componentIds) ? S.saved.componentIds.length > 0 : true;
+      S.selAssets = new Set();
+      if (hasTokens) S.selAssets.add('tokens');
+      if (S.saved.styles !== false) S.selAssets.add('styles');
+      if (hasComps) S.selAssets.add('components');
+      if (S.saved.icons === true) S.selAssets.add('icons');
+    }
+    if (!S.engine || !S.engine.available) { $('fileDot').style.background = '#c58a1a'; $('filePill').textContent = S.fileName + ' · engine missing'; }
+    drawSources();
+  } else if (m.type === 'frames') {
+    const first = S.frames.length === 0;
+    S.frames = d.frames || [];
+    S.recommendedRefs = new Set(S.frames.filter(f => f.recommended).map(f => f.id));
+    if (first) {
+      const savedRefs = S.saved && Array.isArray(S.saved.refFrameIds) ? S.saved.refFrameIds.filter(id => S.frames.some(f => f.id === id)) : null;
+      S.selRefs = new Set(savedRefs && savedRefs.length ? savedRefs : S.recommendedRefs);
+    } else {
+      S.selRefs = new Set([...S.selRefs].filter(id => S.frames.some(f => f.id === id)));
+    }
+    drawRefs();
+  } else if (m.type === 'frame-thumb') {
+    PREV.busy = Math.max(0, PREV.busy - 1);
+    S.thumbs[d.id] = d.dataUrl || '';
+    document.querySelectorAll('#refGrid .preview').forEach(el => { if (el.dataset.preview === d.id) paintPreview(el, S.thumbs[d.id]); });
+    pumpPreview();
+  } else if (m.type === 'progress') {
+    S.progress = Number(d.value) || 0; drawProgress();
+  } else if (m.type === 'analysis') {
+    S.analysis = d; S.progress = 98; drawProgress();
+    send('generate', { mode: 'full', rejected: [], rejInf: [], adherence: 3 });
+  } else if (m.type === 'files-begin') {
+    S.files = []; S.incoming = {}; S.progress = 99; drawProgress();
+  } else if (m.type === 'file') {
+    S.files.push({ path: d.path, content: d.content, binary: !!d.binary });
+  } else if (m.type === 'file-chunk') {
+    const k = d.path, rec = S.incoming[k] || (S.incoming[k] = { parts: [], n: d.n, binary: !!d.binary });
+    rec.parts[d.i] = d.part;
+    if (rec.parts.filter(x => x != null).length === rec.n) { S.files.push({ path: k, content: rec.parts.join(''), binary: rec.binary }); delete S.incoming[k]; }
+  } else if (m.type === 'files-done') {
+    S.building = false; S.built = true; S.progress = 100; drawProgress(); drawFiles();
+    setTimeout(() => setStep(3), 350);
+  } else if (m.type === 'error') {
+    S.building = false; S.errors.push(d.message);
+    const msg = $('buildMsg'); msg.textContent = 'Build failed: ' + d.message; msg.classList.add('show');
+    $('buildTitle').textContent = 'Build stopped'; $('buildSub').textContent = 'Nothing was packaged. Fix the issue and run the build again.';
+    $('percentLabel').textContent = 'ERROR';
+    drawFoot();
+    if (S.step === 2) { const n = $('next'); n.textContent = 'Try again'; n.disabled = false; }
+    const foot = $('footNote'); foot.textContent = 'The last build failed; go back and retry.';
+  }
+}
+window.onmessage = e => { const m = e.data && e.data.pluginMessage; if (m) handle(m); };
+
+// ---------- Wiring ----------
+document.querySelectorAll('.step').forEach(el => el.onclick = () => {
+  const n = Number(el.dataset.step);
+  if (S.building) return;
+  if (n <= S.maxStep && n !== 3) setStep(n);
+  if (n === 3 && S.built) setStep(3);
+});
+$('next').onclick = () => { if (S.step < 2) setStep(S.step + 1); else if (S.step === 2 && !S.building) startBuild(); };
+$('back').onclick = () => { if (S.step > 0 && !S.building) setStep(S.step - 1); };
+$('searchSource').oninput = e => { S.srcQuery = e.target.value; drawSources(); };
+$('searchRefs').oninput = e => { S.refQuery = e.target.value; drawRefs(); };
+$('srcRecommended').onclick = () => { S.selPages = new Set(S.pages.filter(p => p.recommendation === 'Recommended').map(p => p.id)); S.selAssets = new Set(ASSETS.filter(a => a.rec).map(a => a.id)); drawSources(); };
+$('srcAll').onclick = () => { S.selPages = new Set(S.pages.map(p => p.id)); S.selAssets = new Set(ASSETS.map(a => a.id)); drawSources(); };
+$('refsRecommended').onclick = () => { S.selRefs = new Set(S.recommendedRefs); drawRefs(); };
+$('refsNone').onclick = () => { S.selRefs = new Set(); drawRefs(); };
+
+// ---------- Resize the plugin window ----------
+(function () {
+  const grip = $('grip');
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.round(v)));
+  let drag = null;
+  function target(e) {
+    return { w: clamp(drag.w + (e.clientX - drag.x), 520, 1400), h: clamp(drag.h + (e.clientY - drag.y), 420, 1400) };
+  }
+  grip.addEventListener('pointerdown', e => {
+    drag = { x: e.clientX, y: e.clientY, w: window.innerWidth, h: window.innerHeight };
+    grip.classList.add('drag'); grip.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  grip.addEventListener('pointermove', e => { if (drag) send('resize', target(e)); });
+  function end(e) {
+    if (!drag) return;
+    const s = target(e); drag = null; grip.classList.remove('drag');
+    send('resize', Object.assign(s, { commit: true }));
+  }
+  grip.addEventListener('pointerup', end);
+  grip.addEventListener('pointercancel', end);
+  grip.addEventListener('dblclick', () => send('resize', { w: 920, h: 720, commit: true }));
+})();
+
+drawSources(); drawProgress(); drawFoot();
+send('discover');
+</script>
+</body>
+</html>
