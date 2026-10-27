@@ -32,7 +32,7 @@ import meta from './ENGINE.json';
 export const contract = 1;
 export const id: string = meta.id;
 export const version: string = meta.version;
-export const capabilities: string[] = ['frame', 'component'];
+export const capabilities: string[] = ['frame', 'component', 'markers', 'metadata'];
 
 /** Names of the host's CSS variables, so the HTML links to the same tokens as tokens.css. */
 export interface TokenMap {
@@ -70,6 +70,8 @@ export interface FrameResult {
   assets: number;
   /** External image files referenced by bodyHtml/css as `assets/<name>`; content is base64. Empty when embedImages is true. */
   files: Array<{ path: string; base64: string }>;
+  /** The components this frame actually uses, with their variant and property metadata. */
+  components: ComponentMeta[];
   notes: string[];
 }
 
@@ -89,7 +91,58 @@ export interface ComponentResult {
   nodes: number;
   /** External image files referenced by html/css as `assets/<name>`; content is base64. */
   files: Array<{ path: string; base64: string }>;
+  /** Family, variant axes and declared properties of the exported component. */
+  metadata?: ComponentMeta;
   notes: string[];
+}
+
+/** What the engine knows about one Figma component: family, variant axes, properties. */
+export interface ComponentMeta {
+  id: string;
+  name: string;
+  familyId: string;
+  familyName: string;
+  variantProperties?: Record<string, string>;
+  propertyDefinitions?: Record<string, { type: string; defaultValue?: string | boolean; variantOptions?: string[] }>;
+}
+
+function readOpt<T>(get: () => T): T | undefined {
+  try { return get(); } catch { return undefined; }
+}
+
+/** The component's own metadata, read the same way the engine reads an instance's. */
+function componentMeta(node: SceneNode): ComponentMeta | undefined {
+  const parent = readOpt(() => (node as ComponentNode).parent);
+  const family = (parent && parent.type === 'COMPONENT_SET' ? parent : node) as ComponentSetNode;
+  const meta: ComponentMeta = { id: node.id, name: node.name, familyId: family.id, familyName: family.name };
+  const variants = readOpt(() => (node as ComponentNode).variantProperties) as Record<string, string> | undefined;
+  if (variants && Object.keys(variants).length) meta.variantProperties = variants;
+  const defs = readOpt(() => family.componentPropertyDefinitions) as Record<string, Record<string, unknown>> | undefined;
+  const out: ComponentMeta['propertyDefinitions'] = {};
+  Object.keys(defs || {}).forEach(k => {
+    const d = (defs as Record<string, Record<string, unknown>>)[k];
+    if (!d || typeof d.type !== 'string') return;
+    const one: { type: string; defaultValue?: string | boolean; variantOptions?: string[] } = { type: d.type };
+    if (typeof d.defaultValue === 'string' || typeof d.defaultValue === 'boolean') one.defaultValue = d.defaultValue;
+    if (Array.isArray(d.variantOptions) && d.variantOptions.length) one.variantOptions = d.variantOptions.filter(x => typeof x === 'string') as string[];
+    out[k] = one;
+  });
+  if (Object.keys(out).length) meta.propertyDefinitions = out;
+  return meta;
+}
+
+/** Every component an exported frame actually uses, harvested from the IR. */
+function usedComponents(root: IRNode): ComponentMeta[] {
+  const byId = new Map<string, ComponentMeta>();
+  const walk = (n: IRNode) => {
+    const ref = n.componentRef as ComponentMeta & { componentProperties?: Record<string, string | boolean> } | undefined;
+    if (ref && !byId.has(ref.id)) {
+      byId.set(ref.id, { id: ref.id, name: ref.name, familyId: ref.familyId || ref.id, familyName: ref.familyName || ref.name, variantProperties: ref.variantProperties, propertyDefinitions: ref.propertyDefinitions });
+    }
+    n.children.forEach(walk);
+  };
+  walk(root);
+  return Array.from(byId.values());
 }
 
 function hexKey(hex: string): string | null {
@@ -252,7 +305,12 @@ export async function exportFrame(node: SceneNode, tokens: TokenMap, o: ExportOp
   const ir = await convertNodeToIR(node as SceneNode, null, options, registry as unknown as TokenRegistry);
   if (!ir) throw new Error('The frame is hidden or cannot be exported.');
   const rtl = hasRtlInTree(ir);
-  let body = generateHtml(ir, 0);
+  // data-component / data-component-id: the reference page says which Figma
+  // component each subtree is, which is the only link a standalone HTML file can
+  // carry to components/*.html.
+  // Component *dedup* stays off on purpose: it shares one class across frames and
+  // emits its rules once, so a second frame's own stylesheet would miss them.
+  let body = generateHtml(ir, 0, false, { componentMarkers: true });
   let css = renderCss(ir, options, rtl);
   const fileMap = new Map<string, string>();
   if (!o.embedImages) {
@@ -285,6 +343,7 @@ export async function exportFrame(node: SceneNode, tokens: TokenMap, o: ExportOp
     rtl,
     nodes: count.nodes,
     assets: count.assets,
+    components: usedComponents(ir),
     files: Array.from(fileMap.entries()).map(([path, base64]) => ({ path, base64 })),
     notes: [],
   };
@@ -336,6 +395,7 @@ export async function exportComponent(
     css,
     vars: varsOf(css),
     nodes: count.nodes,
+    metadata: componentMeta(root),
     files: Array.from(fileMap.entries()).map(([path, base64]) => ({ path, base64 })),
     notes: [],
   };

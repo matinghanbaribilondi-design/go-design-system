@@ -1,4 +1,5 @@
 import type {
+  ComponentPropertyDefinition,
   ComponentOverride,
   IRNode,
   LayoutStyles,
@@ -43,10 +44,33 @@ export interface ComponentDefinition {
   uses: number;
   /** The canonical subtree. Its classes are the component's classes. */
   tree: IRNode;
+  /** Component Set identity; absent on hand-built legacy IR. */
+  familyId?: string;
+  familyName?: string;
+  variantProperties?: Record<string, string>;
+  componentProperties?: Record<string, string | boolean>;
+  propertyDefinitions?: Record<string, ComponentPropertyDefinition>;
+}
+
+export interface ComponentVariantDefinition {
+  id: string;
+  name: string;
+  className: string;
+  uses: number;
+  properties: Record<string, string>;
+}
+
+export interface ComponentFamilyDefinition {
+  id: string;
+  name: string;
+  propertyDefinitions?: Record<string, ComponentPropertyDefinition>;
+  variants: ComponentVariantDefinition[];
 }
 
 export interface DedupReport {
   definitions: ComponentDefinition[];
+  /** Used Component Sets, grouped independently from concrete masters. */
+  families: ComponentFamilyDefinition[];
   /** Instances rewritten to reuse a definition. */
   merged: number;
   /** Instances left standalone because they differ structurally. */
@@ -95,6 +119,18 @@ function canReuse(instance: IRNode, base: IRNode): boolean {
   if (instance.tag !== base.tag || instance.type !== base.type) return false;
   if (instance.children.length !== base.children.length) return false;
   if ((instance.asset?.content ?? '') !== (base.asset?.content ?? '')) return false;
+  if (!sameComponentRef(instance.componentRef, base.componentRef)) return false;
+  // Attributes are part of the rendered control (checked, placeholder, type,
+  // etc.). They cannot be represented by the style-only modifier class.
+  if (JSON.stringify(instance.attrs ?? {}) !== JSON.stringify(base.attrs ?? {})) return false;
+  if (instance.href !== base.href) return false;
+  if (JSON.stringify(instance.themeClasses ?? []) !== JSON.stringify(base.themeClasses ?? [])) return false;
+  // Pseudo-elements and compound transforms are emitted outside the ordinary
+  // declaration diff. Falling back here is safer than silently painting the
+  // definition's ring/transform on a different Variant.
+  if (!sameValue(instance.visual.gradientBorder, base.visual.gradientBorder)) return false;
+  if ((instance.visual.transform ?? '') !== (base.visual.transform ?? '')) return false;
+  if ((instance.layout.transform ?? '') !== (base.layout.transform ?? '')) return false;
   if (!sameShape(instance.layout, base.layout)) return false;
   if (!sameShape(instance.visual, base.visual)) return false;
   if (!sameShape(instance.typography, base.typography)) return false;
@@ -102,6 +138,21 @@ function canReuse(instance: IRNode, base: IRNode): boolean {
     const counterpart = base.children[i];
     return counterpart ? canReuse(child, counterpart) : false;
   });
+}
+
+/** Component identity is semantic metadata, not just another style bag. */
+function sameComponentRef(
+  a: IRNode['componentRef'],
+  b: IRNode['componentRef']
+): boolean {
+  if (!a || !b) return !a && !b;
+  return (
+    a.id === b.id &&
+    a.familyId === b.familyId &&
+    a.familyName === b.familyName &&
+    sameValue(a.variantProperties, b.variantProperties) &&
+    sameValue(a.propertyDefinitions, b.propertyDefinitions)
+  );
 }
 
 /**
@@ -148,6 +199,7 @@ export function dedupeComponents(roots: IRNode[]): DedupReport {
   }
   return {
     definitions: registry.definitions,
+    families: registry.families,
     merged: registry.merged,
     standalone: registry.standalone,
   };
@@ -166,6 +218,7 @@ export function dedupeComponents(roots: IRNode[]): DedupReport {
 export interface ComponentRegistry {
   /** Definitions in first-use order, the same list `dedupeComponents` returns. */
   readonly definitions: ComponentDefinition[];
+  readonly families: ComponentFamilyDefinition[];
   readonly merged: number;
   readonly standalone: number;
   /** Dedupes one tree in place and returns the definitions it introduced. */
@@ -175,6 +228,8 @@ export interface ComponentRegistry {
 export function createComponentRegistry(): ComponentRegistry {
   const definitions = new Map<string, ComponentDefinition>();
   const ordered: ComponentDefinition[] = [];
+  const families = new Map<string, ComponentFamilyDefinition>();
+  const orderedFamilies: ComponentFamilyDefinition[] = [];
   let merged = 0;
   let standalone = 0;
 
@@ -183,20 +238,55 @@ export function createComponentRegistry(): ComponentRegistry {
     if (ref) {
       const existing = definitions.get(ref.id);
       if (!existing) {
+        const familyId = ref.familyId ?? ref.id;
+        const familyName = ref.familyName ?? ref.name;
         const definition: ComponentDefinition = {
           id: ref.id,
           name: ref.name,
           className: node.className,
           uses: 1,
           tree: node,
+          familyId,
+          familyName,
+          variantProperties: ref.variantProperties,
+          componentProperties: ref.componentProperties,
+          propertyDefinitions: ref.propertyDefinitions,
         };
         definitions.set(ref.id, definition);
         ordered.push(definition);
+
+        let family = families.get(familyId);
+        if (!family) {
+          family = {
+            id: familyId,
+            name: familyName,
+            propertyDefinitions: ref.propertyDefinitions,
+            variants: [],
+          };
+          families.set(familyId, family);
+          orderedFamilies.push(family);
+        }
+        family.variants.push({
+          id: ref.id,
+          name: ref.name,
+          className: node.className,
+          uses: 1,
+          properties: { ...(ref.variantProperties ?? {}) },
+        });
       } else if (canReuse(node, existing.tree)) {
+        const family = families.get(existing.familyId ?? existing.id);
+        const variant = family?.variants.find((item) => item.id === existing.id);
+        // Count every occurrence of the concrete variant, including instances
+        // that stay standalone because their local structure cannot be safely
+        // represented by a style-only modifier.
+        if (variant) variant.uses += 1;
         existing.uses += 1;
         reuse(node, existing.tree, `v${existing.uses}_`, { n: 0 });
         merged += 1;
       } else {
+        const family = families.get(existing.familyId ?? existing.id);
+        const variant = family?.variants.find((item) => item.id === existing.id);
+        if (variant) variant.uses += 1;
         standalone += 1;
       }
       // Nested instances belong to this component's own tree. Two parents
@@ -210,6 +300,9 @@ export function createComponentRegistry(): ComponentRegistry {
   return {
     get definitions() {
       return ordered;
+    },
+    get families() {
+      return orderedFamilies;
     },
     get merged() {
       return merged;

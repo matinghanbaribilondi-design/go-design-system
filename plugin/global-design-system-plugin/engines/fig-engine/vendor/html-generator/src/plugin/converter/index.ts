@@ -10,6 +10,7 @@ import { hyperlinkUrl } from './links';
 import { looksTabular } from '../../shared/tabular';
 import { shouldExportAsSingleVector, hasImageFill, exportVectorAsSvg, exportNodeAsImage } from './assets';
 import { TokenRegistry, TokenResolver } from '../../shared/token-resolver';
+import { readComponentMetadata } from './component-metadata';
 
 /**
  * Recursively converts a Figma SceneNode into an Intermediate Representation (IRNode) tree
@@ -57,7 +58,7 @@ export async function convertNodeToIR(
   if (node.type === 'INSTANCE') {
     const master = (node as unknown as { _resolvedMainComponent?: ComponentNode })._resolvedMainComponent;
     if (master && master.id) {
-      ir.componentRef = { id: master.id, name: master.name };
+      ir.componentRef = readComponentMetadata(node as InstanceNode, master);
     }
   }
 

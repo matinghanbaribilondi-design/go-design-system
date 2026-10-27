@@ -291,8 +291,28 @@ export function applyCheckableSemantics(
   const label = (pickPlaceholder(hits)?.node.text ?? '').trim();
   const names = componentAwareNames(node);
   if (node.type === 'INSTANCE') {
-    const variants = (node as InstanceNode).variantProperties;
-    if (variants) names.push(...Object.values(variants).map((value) => value.toLowerCase()));
+    const instance = node as InstanceNode;
+    let addedPropertyValue = false;
+    try {
+      const properties = instance.componentProperties;
+      for (const property of Object.values(properties ?? {})) {
+        if (typeof property.value === 'string') {
+          names.push(property.value.toLowerCase());
+          addedPropertyValue = true;
+        }
+      }
+    } catch {
+      // Older Figma versions and unloaded dynamic pages may not expose the
+      // modern property bag. The legacy read below remains a best-effort fallback.
+    }
+    if (!addedPropertyValue) {
+      try {
+        const variants = instance.variantProperties;
+        if (variants) names.push(...Object.values(variants).map((value) => value.toLowerCase()));
+      } catch {
+        // Metadata must never prevent the native control from being emitted.
+      }
+    }
   }
 
   const name =

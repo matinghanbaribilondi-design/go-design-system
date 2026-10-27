@@ -13,9 +13,9 @@ button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus
 .file-pill{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px;min-width:0}.file-pill span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}.dot{width:6px;height:6px;border-radius:50%;background:var(--success);flex:none}
 main{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;scrollbar-width:thin}
 .intro{flex:none;padding:24px 0 16px}.eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:7px}h1{font-size:23px;letter-spacing:-.04em;line-height:1.15;font-weight:600;margin:0 0 7px}.intro p{margin:0;color:var(--muted);font-size:13px;max-width:600px}
-.steps{flex:none;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px}
-.step{display:flex;align-items:center;gap:8px;color:var(--faint);font-size:12px;background:none;border:0;padding:0;text-align:left;white-space:nowrap}.num{width:23px;height:23px;border:1px solid var(--border);border-radius:50%;display:grid;place-items:center;background:#fff;font-size:11px;flex:none}.step.active{color:var(--text);font-weight:600}.step.active .num{border-color:var(--text)}.step.done{color:var(--muted)}.step.done .num{background:#111;color:#fff;border-color:#111}.step.done{cursor:pointer}
-.step-line{flex:1;min-width:10px;height:1px;background:var(--line)}.step-line.done{background:#111}
+.steps{flex:none;display:flex;align-items:center;gap:10px;min-width:0;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:14px}
+.step{display:flex;align-items:center;gap:8px;min-width:0;color:var(--faint);font-size:12px;background:none;border:0;padding:0;text-align:left;white-space:nowrap}.step>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis}.num{width:23px;height:23px;border:1px solid var(--border);border-radius:50%;display:grid;place-items:center;background:#fff;font-size:11px;flex:none}.step.active{color:var(--text);font-weight:600}.step.active .num{border-color:var(--text)}.step.done{color:var(--muted)}.step.done .num{background:#111;color:#fff;border-color:#111}.step.done{cursor:pointer}
+.step-line{flex:1 1 8px;min-width:8px;height:1px;background:var(--line)}.step-line.done{background:#111}
 .panel{display:none;padding-bottom:12px}.panel.active{display:block}
 .panel-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:14px}.panel-head h2{font-size:16px;letter-spacing:-.025em;margin:0 0 4px;font-weight:600}.panel-head p{font-size:12px;color:var(--muted);margin:0}.count{font-size:11px;color:var(--muted);white-space:nowrap}
 .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}.search{width:100%;max-width:290px;border:1px solid var(--line);background:var(--surface);border-radius:7px;height:33px;padding:0 10px;color:var(--text)}.search::placeholder{color:var(--faint)}.text-btn{border:0;background:transparent;color:var(--muted);padding:5px 4px;font-size:12px}.text-btn:hover{color:var(--text)}
@@ -25,6 +25,33 @@ main{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;scro
 .info{margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:10px 12px;color:var(--muted);font-size:11px;display:flex;gap:8px;align-items:flex-start;line-height:1.5}.info strong{color:var(--text);font-weight:500}.info .i{color:var(--faint);flex:none}
 .ref-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.ref-card{border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;align-items:flex-start;gap:10px;cursor:pointer;min-height:84px;user-select:none;background:#fff}.ref-card:hover{background:var(--surface)}.ref-card.selected{border-color:#777;box-shadow:inset 0 0 0 1px #777;background:#fff}.ref-card .check{margin-top:2px}.ref-card h3{font-size:12px;font-weight:600;margin:0 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ref-card p{font-size:11px;color:var(--muted);margin:0}.ref-card .tag{margin-left:auto}
 .preview{height:126px;background:var(--subtle);border:1px solid var(--line);border-radius:6px;margin-top:8px;display:grid;place-items:center;overflow:hidden}.preview img{display:block;max-width:100%;max-height:100%;width:auto;height:auto}.preview .ph{display:flex;gap:6px;align-items:center;width:100%;height:100%;padding:10px}.preview .ph .block{height:28px;width:28px;background:#ddd;border-radius:3px;flex:none}.preview .ph .lines{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}.preview .ph .lines div{display:block;height:6px;background:#d4d4d8;border-radius:2px}.preview .ph .lines .dark{background:#333;width:72%}.preview .ph .lines div:nth-child(2){width:50%}.preview .ph .lines div:nth-child(3){width:38%}.preview .nothumb{font-size:10px;color:var(--faint)}
+.adh{margin-top:22px;border-top:1px solid var(--line);padding-top:20px}
+.adh .eyebrow{margin-bottom:6px}
+.adh-title{font-size:18px;letter-spacing:-.03em;line-height:1.2;margin:0 0 7px;font-weight:600}
+.adh>p{font-size:12.5px;color:var(--muted);margin:0 0 38px;max-width:520px;line-height:1.55}
+.slider{padding:0 9px}
+.sl-nums{position:relative;height:17px}
+.sl-num{position:absolute;transform:translateX(-50%);font-size:12px;color:var(--muted);line-height:1}.sl-num.first{transform:none}.sl-num.last{transform:translateX(-100%)}
+.sl-num.on{color:var(--text);font-weight:600}
+.sl-track{position:relative;height:22px;margin-top:3px;cursor:pointer;touch-action:none;border-radius:11px}
+.sl-track:focus-visible{outline:2px solid #666;outline-offset:6px}
+.sl-rail{position:absolute;left:0;right:0;top:9px;height:4px;border-radius:2px;background:#e6e6ea}
+.sl-fill{position:absolute;left:0;top:9px;height:4px;border-radius:2px;background:#101014;width:0;transition:width .16s ease}
+.sl-marks{position:absolute;left:0;right:0;top:0;height:22px}
+.sl-mark{position:absolute;top:50%;width:16px;height:16px;border-radius:50%;background:#dcdce3;transform:translate(-50%,-50%);transition:background .16s,box-shadow .16s}
+.sl-mark.pass,.sl-mark.on{background:#101014}
+.sl-mark.on{width:18px;height:18px;box-shadow:0 0 0 4px #ececef}
+.sl-labels{position:relative;height:62px;margin-top:16px}
+.sl-label{position:absolute;width:clamp(86px,20%,140px);transform:translateX(-50%);text-align:center;font-size:10.5px;line-height:1.5;color:var(--muted)}
+.sl-label span{display:block}
+.sl-label b{display:block;font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:3px;letter-spacing:-.01em}
+.sl-label.first{transform:none;text-align:left}.sl-label.last{transform:translateX(-100%);text-align:right}
+.sl-label.on b{color:#101014}
+.adh-sum{display:flex;align-items:center;justify-content:center;gap:16px;margin:26px auto 4px;padding:13px 24px;border:1px solid var(--line);background:var(--surface);border-radius:999px;font-size:12.5px;max-width:560px}
+.adh-sum .s-item{display:inline-flex;align-items:center;gap:9px;white-space:nowrap}
+.adh-sum .s-item svg{width:15px;height:15px;color:#3f3f46;flex:none}
+.adh-sum .s-div{width:1px;height:18px;background:var(--line);flex:none}
+@media(max-width:600px){.adh>p{margin-bottom:28px}.sl-label{width:auto}.sl-label span{display:none}.sl-labels{height:22px;margin-top:14px}.adh-sum{gap:10px;padding:11px 14px;font-size:11.5px}}
 .empty{border:1px dashed var(--border);border-radius:8px;padding:22px;text-align:center;color:var(--muted);font-size:12px;margin-top:8px}
 .foot{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line);padding:14px 0}.foot.hide{display:none}.foot-note{font-size:11px;color:var(--muted);max-width:360px}.actions{display:flex;gap:8px}.btn{height:34px;padding:0 13px;border:1px solid var(--border);border-radius:7px;background:#fff;color:#222;font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:6px}.btn:hover{background:var(--subtle)}.btn.primary{background:#111;color:#fff;border-color:#111}.btn.primary:hover{background:#333}.btn:disabled{opacity:.35;cursor:not-allowed}
 .progress-wrap{min-height:330px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:10px 0 18px}.ring{width:140px;height:140px;position:relative;margin-bottom:20px}.ring svg{width:100%;height:100%;transform:rotate(-90deg)}.ring .track{fill:none;stroke:var(--subtle);stroke-width:5}.ring .progress{fill:none;stroke:#111;stroke-width:5;stroke-linecap:round;stroke-dasharray:408.4;stroke-dashoffset:408.4;transition:stroke-dashoffset .25s ease}.percent{position:absolute;inset:0;display:grid;place-content:center}.percent strong{font-size:29px;letter-spacing:-.05em;font-weight:500}.percent span{font-size:10px;color:var(--muted);margin-top:1px;text-align:center}
@@ -33,6 +60,17 @@ main{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;scro
 .complete{min-height:330px;display:flex;align-items:center;justify-content:center;text-align:center;padding:14px 0 20px}.complete-inner{max-width:520px;width:100%}.success-icon{width:48px;height:48px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;margin:0 auto 15px}.success-icon svg{width:22px;height:22px}.complete h2{font-size:21px;letter-spacing:-.04em;margin:0 0 6px}.complete p{font-size:12px;color:var(--muted);margin:0 auto 16px;max-width:400px}
 .file-list{border:1px solid var(--line);border-radius:8px;text-align:left;margin:0 0 16px;overflow:hidden;max-height:290px;overflow-y:auto}.file-row{display:flex;align-items:center;gap:9px;padding:8px 11px;border-bottom:1px solid var(--line);font-size:11px}.file-row:last-child{border-bottom:0}.filetype{width:26px;height:24px;border-radius:5px;background:var(--subtle);display:grid;place-items:center;color:#555;font-size:8px;font-weight:700;flex:none;letter-spacing:.03em}.file-row .fp{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.file-row small{color:var(--muted);flex:none}.file-group{padding:6px 11px;background:var(--surface);border-bottom:1px solid var(--line);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .completion-actions{display:flex;justify-content:center;gap:8px}
+.ref-card .preview{position:relative;cursor:zoom-in}.ref-card .preview:hover{border-color:#bdbdc4}.ref-card .pimg{display:grid;place-items:center;width:100%;height:100%;overflow:hidden}
+.zoom{position:absolute;top:6px;right:6px;height:24px;padding:0 8px;border:1px solid rgba(0,0,0,.12);border-radius:6px;background:rgba(255,255,255,.92);color:#222;font-size:10px;font-weight:600;display:inline-flex;align-items:center;gap:4px;opacity:0;transition:opacity .12s}
+.ref-card:hover .zoom,.ref-card:focus-within .zoom,.zoom.forced{opacity:1}.zoom:hover{background:#fff}
+.viewer{position:fixed;inset:0;z-index:70;background:rgba(18,18,20,.94);display:flex;flex-direction:column}
+.v-bar{flex:none;height:46px;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid rgba(255,255,255,.14);color:#f2f2f4;font-size:12px}
+.v-bar .v-t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v-bar .v-m{color:#9a9aa4;font-size:11px;white-space:nowrap}
+.v-bar .sp{flex:1}.v-bar .btn{height:28px;font-size:11px;background:rgba(255,255,255,.08);color:#f2f2f4;border-color:rgba(255,255,255,.2)}.v-bar .btn:hover{background:rgba(255,255,255,.16)}.v-bar .btn.on{background:#fff;color:#111;border-color:#fff}
+.v-stage{flex:1;overflow:auto;padding:20px;display:flex;justify-content:center;align-items:flex-start;background:repeating-conic-gradient(#232326 0% 25%,#1c1c1f 0% 50%) 50%/22px 22px}
+.v-stage.fit{align-items:center}.v-stage.fit img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+.v-stage img{display:block;background:#fff;box-shadow:0 12px 40px rgba(0,0,0,.5);image-rendering:auto}
+.v-note{color:#c9c9d2;font-size:12px;margin:auto;text-align:center;max-width:420px;line-height:1.6}
 .grip{position:fixed;right:0;bottom:0;width:18px;height:18px;z-index:60;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 45%,var(--border) 45%,var(--border) 58%,transparent 58%,transparent 70%,var(--border) 70%,var(--border) 83%,transparent 83%)}
 .grip:hover,.grip.drag{background:linear-gradient(135deg,transparent 45%,var(--accent) 45%,var(--accent) 58%,transparent 58%,transparent 70%,var(--accent) 70%,var(--accent) 83%,transparent 83%)}
 @media(min-width:1000px){.app{max-width:1180px}.ref-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -62,15 +100,32 @@ main{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;scro
       <div class="panel-head"><div><h2>What should we include?</h2><p>Choose pages and design-system assets. You can adjust them before building.</p></div><div class="count" id="sourceCount">0 sources selected</div></div>
       <div class="toolbar"><input class="search" id="searchSource" placeholder="Search pages and assets…" aria-label="Search sources"><button class="text-btn" id="srcRecommended" type="button">Recommended</button><button class="text-btn" id="srcAll" type="button">Select all</button></div>
       <div class="list" id="sourceList"></div>
+      <div class="adh">
+        <div class="eyebrow">Creativity level</div>
+        <h3 class="adh-title">How creative should the AI be?</h3>
+        <p>Choose the right balance between following design system rules and exploring creative ideas.</p>
+        <div class="slider hide" id="adhSlider">
+          <div class="sl-nums" id="adhNums"></div>
+          <div class="sl-track" id="adhTrack" role="slider" tabindex="0" aria-label="How creative should the AI be?" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0">
+            <span class="sl-rail"></span><span class="sl-fill" id="adhFill"></span><span class="sl-marks" id="adhMarks"></span>
+          </div>
+          <div class="sl-labels" id="adhLabels"></div>
+        </div>
+        <div class="adh-sum hide" id="adhSum" aria-live="polite">
+          <span class="s-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.4-2.9 7.9-7 9.5-4.1-1.6-7-5.1-7-9.5V6z"/><path d="m9 12 2.2 2.2L15.5 9.8"/></svg><span id="adhRule"></span></span>
+          <span class="s-div" aria-hidden="true"></span>
+          <span class="s-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 20.5l-1.9-5.1L5 13.5l5.1-1.9z"/></svg><span id="adhFree"></span></span>
+        </div>
+      </div>
       <div class="info"><span class="i">ⓘ</span><span><strong>Pages come from this file.</strong> Pick the pages that represent the system, not every exploration. Component HTML and reference frames are rendered by the fig-engine module; tokens and component structure stay separate sources in the output.</span></div>
     </section>
 
     <section class="panel" id="panel1">
-      <div class="panel-head"><div><h2>Choose reference pages</h2><p>Selected frames become standalone HTML examples inside the package.</p></div><div class="count" id="refCount">0 references selected</div></div>
-      <div class="toolbar"><input class="search" id="searchRefs" placeholder="Search reference frames…" aria-label="Search references"><button class="text-btn" id="refsRecommended" type="button">Recommended</button><button class="text-btn" id="refsNone" type="button">None</button></div>
+      <div class="panel-head"><div><h2>Choose reference pages</h2><p>Each selected frame ships as its own HTML file, named after the frame. Frames inside sections are listed.</p></div><div class="count" id="refCount">0 references selected</div></div>
+      <div class="toolbar"><input class="search" id="searchRefs" placeholder="Search reference frames…" aria-label="Search references"><button class="text-btn" id="refsRecommended" type="button">Recommended</button><button class="text-btn" id="refsNone" type="button">None</button><button class="text-btn" id="refsReload" type="button" title="Re-read the selected pages without leaving this step">↻ Reload</button></div>
       <div class="ref-grid" id="refGrid"></div>
       <div class="empty hide" id="refEmpty">No top-level frames on the selected pages. Go back and add a page with frames.</div>
-      <div class="info"><span class="i">ⓘ</span><span>Reference HTML is visual evidence, not the source of truth for token values. If you don't need examples, select <strong>None</strong> and continue without a references folder.</span></div>
+      <div class="info"><span class="i">ⓘ</span><span><strong>Reload picks up your edits.</strong> After you add, rename or delete frames on these pages, press Reload — the list and the previews refresh in place, and your selection is kept for the frames that are still there. Reference HTML is visual evidence, not the source of truth for token values; if you don't need examples, select <strong>None</strong>.</span></div>
     </section>
 
     <section class="panel" id="panel2">
@@ -99,6 +154,10 @@ main{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;scro
   </main>
   <div class="foot" id="foot"><div class="foot-note" id="footNote">Recommended selections are ready to use.</div><div class="actions"><button class="btn" id="back" type="button" disabled>Back</button><button class="btn primary" id="next" type="button">Continue →</button></div></div>
 </div>
+<div class="viewer hide" id="viewer" role="dialog" aria-modal="true" aria-label="Frame full view">
+  <div class="v-bar"><span class="v-t" id="vTitle">Frame</span><span class="v-m" id="vMeta"></span><span class="sp"></span><button class="btn" id="vFit" type="button">Fit</button><button class="btn" id="vReal" type="button">100%</button><button class="btn" id="vClose" type="button">Close ✕</button></div>
+  <div class="v-stage fit" id="vStage"><div class="v-note" id="vNote">Loading the full frame…</div></div>
+</div>
 <div class="grip" id="grip" title="Drag to resize the plugin window"></div>
 <script>
 const $ = id => document.getElementById(id);
@@ -116,9 +175,9 @@ const ASSETS = [
 const S = {
   step: 0, maxStep: 0, loaded: false,
   fileName: '', pages: [], collections: [], comps: [], counts: {},
-  saved: null, engine: null,
+  saved: null, engine: null, steps: [], creativity: 0, adherence: 0,
   selPages: new Set(), selAssets: new Set(['tokens', 'styles', 'components']),
-  frames: [], selRefs: new Set(), recommendedRefs: new Set(), thumbs: {},
+  frames: [], selRefs: new Set(), recommendedRefs: new Set(), thumbs: {}, refLoaded: false, reloading: false, refNote: '',
   progress: 0, building: false, built: false, analysis: null,
   files: [], incoming: null, errors: [],
   srcQuery: '', refQuery: ''
@@ -165,7 +224,7 @@ function drawFoot() {
 function pageRow(p) {
   const sel = S.selPages.has(p.id);
   const tag = p.recommendation === 'Recommended' ? '<span class="tag rec">Recommended</span>' : p.recommendation === 'Excluded' ? '<span class="tag">Excluded</span>' : '<span class="tag">Review</span>';
-  return `<div class="item ${sel ? 'selected' : ''}" data-kind="page" data-id="${esc(p.id)}"><span class="check"></span><span class="mini-icon">▦</span><div class="item-main"><div class="item-title">${esc(p.name)}</div><div class="item-meta">Page · ${p.frames} top-level item(s) · ${p.components} component(s)</div></div>${tag}</div>`;
+  return `<div class="item ${sel ? 'selected' : ''}" data-kind="page" data-id="${esc(p.id)}"><span class="check"></span><span class="mini-icon">▦</span><div class="item-main"><div class="item-title">${esc(p.name)}</div><div class="item-meta">Page · ${p.frames} frame(s) or section(s) · ${p.components} component(s)</div></div>${tag}</div>`;
 }
 function assetRow(a) {
   const sel = S.selAssets.has(a.id), n = a.id === 'tokens' ? S.counts.variables : a.id === 'styles' ? S.counts.styles : a.id === 'components' ? S.counts.components : null;
@@ -180,14 +239,47 @@ function drawSources() {
   $('sourceCount').textContent = `${S.selPages.size} page(s) · ${S.selAssets.size} asset group(s)`;
   document.querySelectorAll('#sourceList .item').forEach(el => el.onclick = () => {
     const id = el.dataset.id;
-    if (el.dataset.kind === 'page') { if (S.selPages.has(id)) S.selPages.delete(id); else S.selPages.add(id); S.frames = []; S.selRefs.clear(); }
+    if (el.dataset.kind === 'page') { if (S.selPages.has(id)) S.selPages.delete(id); else S.selPages.add(id); resetRefs(); }
     else { if (S.selAssets.has(id)) S.selAssets.delete(id); else S.selAssets.add(id); }
     drawSources(); drawFoot();
   });
   drawFoot();
 }
 
+// ---------- AI creativity level (discrete slider, five positions) ----------
+function drawAdherence() {
+  const steps = S.steps, n = steps.length;
+  if (!n) return;
+  const cur = Math.max(0, Math.min(n - 1, S.creativity));
+  const pct = i => (i / (n - 1)) * 100 + '%';
+  const edge = i => i === 0 ? ' first' : i === n - 1 ? ' last' : '';
+  $('adhNums').innerHTML = steps.map(s => `<span class="sl-num${s.position === cur ? ' on' : ''}${edge(s.position)}" style="left:${pct(s.position)}">${s.position}</span>`).join('');
+  $('adhMarks').innerHTML = steps.map(s => `<span class="sl-mark${s.position === cur ? ' on' : s.position < cur ? ' pass' : ''}" style="left:${pct(s.position)}"></span>`).join('');
+  $('adhLabels').innerHTML = steps.map(s => `<span class="sl-label${s.position === cur ? ' on' : ''}${edge(s.position)}" style="left:${pct(s.position)}"><b>${esc(s.label)}</b><span>${s.rule}% Rule Adherence</span><span>${s.creative}% Creative Freedom</span></span>`).join('');
+  $('adhFill').style.width = pct(cur);
+  const st = steps[cur];
+  $('adhRule').textContent = st.rule + '% Rule Adherence';
+  $('adhFree').textContent = st.creative + '% Creative Freedom';
+  const track = $('adhTrack');
+  track.setAttribute('aria-valuemin', '0'); track.setAttribute('aria-valuemax', String(n - 1));
+  track.setAttribute('aria-valuenow', String(cur));
+  track.setAttribute('aria-valuetext', `${st.label}: ${st.rule}% rule adherence, ${st.creative}% creative freedom`);
+  $('adhSlider').classList.remove('hide'); $('adhSum').classList.remove('hide');
+  S.adherence = st.adherence;
+}
+function setCreativity(i) {
+  const n = S.steps.length; if (!n) return;
+  const v = Math.max(0, Math.min(n - 1, Math.round(Number(i) || 0)));
+  if (v === S.creativity) return;
+  S.creativity = v; drawAdherence(); drawFoot();
+}
+function posFromX(clientX) {
+  const r = $('adhTrack').getBoundingClientRect(), n = S.steps.length;
+  return Math.round(Math.max(0, Math.min(1, (clientX - r.left) / Math.max(1, r.width))) * (n - 1));
+}
+
 // ---------- Step 2: references ----------
+function resetRefs() { S.frames = []; S.selRefs.clear(); S.thumbs = {}; S.refLoaded = false; S.reloading = false; S.refNote = ''; PREV.q = []; PREV.seen = new Set(); PREV.busy = 0; for (const k in FULL) delete FULL[k]; }
 function loadFrames() {
   if (!S.selPages.size) { S.frames = []; drawRefs(); return; }
   send('frames', { pageIds: [...S.selPages], compNames: S.comps.slice(0, 60).map(c => c.name), counts: { components: S.counts.components || 0, tokens: S.counts.variables || 0, styles: S.counts.styles || 0 } });
@@ -198,15 +290,17 @@ function previewHtml(id) {
   if (t === '') return '<span class="nothumb">No preview</span>';
   return '<div class="ph"><div class="block"></div><div class="lines"><div class="dark"></div><div></div><div></div></div></div>';
 }
+const zoomBtnHtml = (id, name) => `<button class="zoom" type="button" data-zoom="${esc(id)}" aria-label="Full view of ${esc(name)}" title="Full view of ${esc(name)}">⤢ Full view</button>`;
 function refCard(f) {
   const sel = S.selRefs.has(f.id);
   const meta = `${esc(f.page)} · ${f.w}×${f.h}${f.instances != null ? ' · ' + f.instances + ' instance(s)' : ''}`;
-  return `<div class="ref-card ${sel ? 'selected' : ''}" data-id="${esc(f.id)}"><span class="check"></span><div class="item-main"><h3>${esc(f.name)}</h3><p>${meta}</p><div class="preview" data-preview="${esc(f.id)}">${previewHtml(f.id)}</div></div><span class="tag">Frame</span></div>`;
+  return `<div class="ref-card ${sel ? 'selected' : ''}" data-id="${esc(f.id)}"><span class="check"></span><div class="item-main"><h3>${esc(f.name)}</h3><p>${meta}</p><div class="preview" data-preview="${esc(f.id)}" role="button" tabindex="0" aria-label="Open the full view of ${esc(f.name)}"><span class="pimg">${previewHtml(f.id)}</span>${zoomBtnHtml(f.id, f.name)}</div></div><span class="tag">Frame</span></div>`;
 }
 const PREV = { q: [], busy: 0, seen: new Set(), io: null };
 function paintPreview(el, url) {
-  if (url) { const img = new Image(); img.alt = ''; img.src = url; el.innerHTML = ''; el.appendChild(img); }
-  else el.innerHTML = '<span class="nothumb">No preview</span>';
+  const box = el.querySelector('.pimg'); if (!box) return;
+  if (url) { const img = new Image(); img.alt = ''; img.src = url; box.innerHTML = ''; box.appendChild(img); }
+  else box.innerHTML = '<span class="nothumb">No preview</span>';
 }
 function wantPreview(id) {
   if (!id || S.thumbs[id] !== undefined || PREV.seen.has(id)) return;
@@ -232,12 +326,72 @@ function observePreviews() {
   }), { root: document.querySelector('main'), rootMargin: '320px 0px' });
   cards.slice(6).forEach(el => PREV.io.observe(el));
 }
+// ---------- Full view of one frame ----------
+const FULL = {};
+const VIEW = { id: null, mode: 'fit', rec: null, opener: null };
+function vnote(text) { const n = $('vNote'); n.textContent = text; n.style.display = text ? 'block' : 'none'; }
+function setViewMode(mode) {
+  VIEW.mode = mode;
+  const stage = $('vStage'), img = stage.querySelector('img');
+  stage.classList.toggle('fit', mode === 'fit');
+  $('vFit').classList.toggle('on', mode === 'fit');
+  $('vReal').classList.toggle('on', mode === 'real');
+  $('vReal').disabled = !VIEW.rec;
+  if (!img || !VIEW.rec) return;
+  img.style.width = mode === 'real' ? VIEW.rec.pw + 'px' : '';
+  img.style.height = mode === 'real' ? VIEW.rec.ph + 'px' : '';
+  const pct = VIEW.rec.w ? Math.round(VIEW.rec.pw / VIEW.rec.w * 100) : 100;
+  $('vMeta').textContent = `${VIEW.rec.w}×${VIEW.rec.h} px` + (pct >= 100 ? ' · 100% is Figma size' : ` · captured at ${pct}%`);
+}
+function paintView() {
+  const stage = $('vStage');
+  if (!VIEW.rec || VIEW.rec.error) {
+    const img = stage.querySelector('img'); if (img) img.remove();
+    vnote(VIEW.rec ? 'Full preview failed: ' + VIEW.rec.error : 'Loading the full frame…');
+    return;
+  }
+  vnote('');
+  let img = stage.querySelector('img');
+  if (!img) { img = new Image(); img.alt = ''; stage.appendChild(img); }
+  img.src = VIEW.rec.dataUrl;
+  setViewMode(VIEW.mode);
+}
+function openFrameView(f, opener) {
+  if (!f) return;
+  const cached = FULL[f.id] && (FULL[f.id].dataUrl || FULL[f.id].error) ? FULL[f.id] : null;
+  VIEW.id = f.id; VIEW.mode = 'fit'; VIEW.rec = cached; VIEW.opener = opener || null;
+  $('vTitle').textContent = f.name;
+  $('viewer').classList.remove('hide');
+  $('vStage').querySelectorAll('img').forEach(el => el.remove());
+  setViewMode('fit');
+  paintView();
+  if (!cached) send('frame-thumb', { id: f.id, size: 'full' });
+  $('vClose').focus();
+}
+function closeFrameView() {
+  $('viewer').classList.add('hide');
+  VIEW.id = null; VIEW.rec = null;
+  if (VIEW.opener && VIEW.opener.isConnected) VIEW.opener.focus();
+  VIEW.opener = null;
+}
+function fullThumbArrived(d) {
+  FULL[d.id] = d.dataUrl ? { dataUrl: d.dataUrl, pw: d.pw || d.w, ph: d.ph || d.h, w: d.w, h: d.h } : { error: d.error || 'no image returned' };
+  if (VIEW.id !== d.id) return;
+  VIEW.rec = FULL[d.id];
+  paintView();
+}
 function drawRefs() {
   const q = S.refQuery.toLowerCase();
   const list = S.frames.filter(f => !q || (f.name + ' ' + f.page).toLowerCase().includes(q));
   $('refGrid').innerHTML = list.map(refCard).join('');
   $('refEmpty').classList.toggle('hide', list.length > 0);
-  $('refCount').textContent = `${S.selRefs.size} reference(s) selected`;
+  $('refCount').textContent = S.reloading ? 'Reloading…' : (S.refNote || `${S.selRefs.size} reference(s) selected`);
+  document.querySelectorAll('#refGrid .preview').forEach(el => {
+    const frame = () => S.frames.find(f => f.id === el.dataset.preview);
+    const opener = el.querySelector('.zoom');
+    el.onclick = ev => { ev.stopPropagation(); openFrameView(frame(), opener); };
+    el.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.stopPropagation(); openFrameView(frame(), opener); } };
+  });
   document.querySelectorAll('#refGrid .ref-card').forEach(el => el.onclick = () => {
     const id = el.dataset.id;
     if (S.selRefs.has(id)) S.selRefs.delete(id); else S.selRefs.add(id);
@@ -298,6 +452,7 @@ function selObj() {
     componentHtml: hasComponents,
     iconPack: '',
     refFrameIds: [...S.selRefs],
+    adherence: S.adherence,
     refEmbedImages: false,
     refMatchColors: true,
     refEngine: 'fig-engine',
@@ -356,6 +511,11 @@ function handle(m) {
   if (m.type === 'discover') {
     S.loaded = true; S.fileName = d.fileName || 'Figma file'; S.pages = d.pages || []; S.collections = d.collections || []; S.comps = d.comps || []; S.counts = d.counts || {}; S.saved = d.saved || null; S.engine = d.engine || null;
     $('filePill').textContent = S.fileName;
+    S.steps = d.steps || [];
+    const savedLevel = S.saved && S.saved.adherence;
+    const remembered = S.steps.findIndex(s => s.adherence === savedLevel);
+    if (remembered >= 0) S.creativity = remembered;
+    drawAdherence();
     const savedPages = S.saved && Array.isArray(S.saved.pageIds) ? S.saved.pageIds.filter(id => S.pages.some(p => p.id === id)) : null;
     const initial = savedPages && savedPages.length ? savedPages : S.pages.filter(p => p.recommendation === 'Recommended').map(p => p.id);
     S.selPages = new Set(initial);
@@ -371,26 +531,36 @@ function handle(m) {
     if (!S.engine || !S.engine.available) { $('fileDot').style.background = '#c58a1a'; $('filePill').textContent = S.fileName + ' · engine missing'; }
     drawSources();
   } else if (m.type === 'frames') {
-    const first = S.frames.length === 0;
+    const first = !S.refLoaded, before = new Map(S.frames.map(f => [f.id, f.name]));
+    S.refLoaded = true; S.reloading = false;
     S.frames = d.frames || [];
     S.recommendedRefs = new Set(S.frames.filter(f => f.recommended).map(f => f.id));
     if (first) {
       const savedRefs = S.saved && Array.isArray(S.saved.refFrameIds) ? S.saved.refFrameIds.filter(id => S.frames.some(f => f.id === id)) : null;
       S.selRefs = new Set(savedRefs && savedRefs.length ? savedRefs : S.recommendedRefs);
     } else {
-      S.selRefs = new Set([...S.selRefs].filter(id => S.frames.some(f => f.id === id)));
+      const now = new Map(S.frames.map(f => [f.id, f.name]));
+      let added = 0, renamed = 0;
+      now.forEach((name, id) => { if (!before.has(id)) added++; else if (before.get(id) !== name) renamed++; });
+      let gone = 0; before.forEach((name, id) => { if (!now.has(id)) gone++; });
+      S.selRefs = new Set([...S.selRefs].filter(id => now.has(id)));
+      S.thumbs = {}; PREV.q = []; PREV.seen = new Set(); PREV.busy = 0;
+      S.refNote = 'Reloaded · ' + (added + renamed + gone ? `${added} new, ${renamed} renamed, ${gone} removed` : 'nothing changed') + '.';
     }
     drawRefs();
   } else if (m.type === 'frame-thumb') {
-    PREV.busy = Math.max(0, PREV.busy - 1);
-    S.thumbs[d.id] = d.dataUrl || '';
-    document.querySelectorAll('#refGrid .preview').forEach(el => { if (el.dataset.preview === d.id) paintPreview(el, S.thumbs[d.id]); });
-    pumpPreview();
+    if (d.size === 'full') { fullThumbArrived(d); }
+    else {
+      PREV.busy = Math.max(0, PREV.busy - 1);
+      S.thumbs[d.id] = d.dataUrl || '';
+      document.querySelectorAll('#refGrid .preview').forEach(el => { if (el.dataset.preview === d.id) paintPreview(el, S.thumbs[d.id]); });
+      pumpPreview();
+    }
   } else if (m.type === 'progress') {
     S.progress = Number(d.value) || 0; drawProgress();
   } else if (m.type === 'analysis') {
     S.analysis = d; S.progress = 98; drawProgress();
-    send('generate', { mode: 'full', rejected: [], rejInf: [], adherence: 3 });
+    send('generate', { mode: 'full', rejected: [], rejInf: [], adherence: S.adherence });
   } else if (m.type === 'files-begin') {
     S.files = []; S.incoming = {}; S.progress = 99; drawProgress();
   } else if (m.type === 'file') {
@@ -425,10 +595,11 @@ $('next').onclick = () => { if (S.step < 2) setStep(S.step + 1); else if (S.step
 $('back').onclick = () => { if (S.step > 0 && !S.building) setStep(S.step - 1); };
 $('searchSource').oninput = e => { S.srcQuery = e.target.value; drawSources(); };
 $('searchRefs').oninput = e => { S.refQuery = e.target.value; drawRefs(); };
-$('srcRecommended').onclick = () => { S.selPages = new Set(S.pages.filter(p => p.recommendation === 'Recommended').map(p => p.id)); S.selAssets = new Set(ASSETS.filter(a => a.rec).map(a => a.id)); drawSources(); };
-$('srcAll').onclick = () => { S.selPages = new Set(S.pages.map(p => p.id)); S.selAssets = new Set(ASSETS.map(a => a.id)); drawSources(); };
+$('srcRecommended').onclick = () => { S.selPages = new Set(S.pages.filter(p => p.recommendation === 'Recommended').map(p => p.id)); S.selAssets = new Set(ASSETS.filter(a => a.rec).map(a => a.id)); resetRefs(); drawSources(); };
+$('srcAll').onclick = () => { S.selPages = new Set(S.pages.map(p => p.id)); S.selAssets = new Set(ASSETS.map(a => a.id)); resetRefs(); drawSources(); };
 $('refsRecommended').onclick = () => { S.selRefs = new Set(S.recommendedRefs); drawRefs(); };
 $('refsNone').onclick = () => { S.selRefs = new Set(); drawRefs(); };
+$('refsReload').onclick = () => { if (S.reloading || S.building) return; S.reloading = true; S.refNote = ''; drawRefs(); loadFrames(); };
 
 // ---------- Resize the plugin window ----------
 (function () {
@@ -453,7 +624,38 @@ $('refsNone').onclick = () => { S.selRefs = new Set(); drawRefs(); };
   grip.addEventListener('dblclick', () => send('resize', { w: 920, h: 720, commit: true }));
 })();
 
-drawSources(); drawProgress(); drawFoot();
+// ---------- Creativity slider wiring ----------
+(function () {
+  const track = $('adhTrack');
+  let drag = false;
+  track.addEventListener('pointerdown', e => {
+    drag = true;
+    try { track.setPointerCapture(e.pointerId); } catch (err) { /* synthetic event */ }
+    setCreativity(posFromX(e.clientX)); e.preventDefault();
+  });
+  track.addEventListener('pointermove', e => { if (drag) setCreativity(posFromX(e.clientX)); });
+  const stop = () => { drag = false; };
+  track.addEventListener('pointerup', stop);
+  track.addEventListener('pointercancel', stop);
+  track.addEventListener('keydown', e => {
+    const at = S.creativity;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') setCreativity(at - 1);
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') setCreativity(at + 1);
+    else if (e.key === 'Home') setCreativity(0);
+    else if (e.key === 'End') setCreativity(S.steps.length - 1);
+    else return;
+    e.preventDefault();
+  });
+})();
+
+// ---------- Full view wiring ----------
+$('vClose').onclick = closeFrameView;
+$('vFit').onclick = () => setViewMode('fit');
+$('vReal').onclick = () => setViewMode('real');
+$('vStage').onclick = e => { if (e.target === $('vStage')) closeFrameView(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('viewer').classList.contains('hide')) closeFrameView(); });
+
+drawSources(); drawAdherence(); drawProgress(); drawFoot();
 send('discover');
 </script>
 </body>

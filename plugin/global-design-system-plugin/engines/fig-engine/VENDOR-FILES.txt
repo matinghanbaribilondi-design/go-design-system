@@ -1,10 +1,11 @@
 html-generator/src/generator/css-generator.ts 41bf2bb67b
-html-generator/src/generator/html-generator.ts 9a7f81b143
+html-generator/src/generator/html-generator.ts e43ba0701b
 html-generator/src/plugin/converter/assets.ts 10d4e19596
 html-generator/src/plugin/converter/blend.ts 47197f8f9e
+html-generator/src/plugin/converter/component-metadata.ts 60e022126e
 html-generator/src/plugin/converter/dividers.ts bf12110d52
-html-generator/src/plugin/converter/form-controls.ts a44346e6e3
-html-generator/src/plugin/converter/index.ts 1fab67d722
+html-generator/src/plugin/converter/form-controls.ts aff054ab2f
+html-generator/src/plugin/converter/index.ts e6a3378129
 html-generator/src/plugin/converter/layout.ts c4359d3ae3
 html-generator/src/plugin/converter/links.ts 53bd594abb
 html-generator/src/plugin/converter/masks.ts 8483aaa4fd
@@ -12,7 +13,7 @@ html-generator/src/plugin/converter/strokes.ts dacdd5f9e1
 html-generator/src/plugin/converter/styles.ts e7f9085067
 html-generator/src/plugin/converter/typography.ts 45a9bf49db
 html-generator/src/plugin/converter/utils.ts addc764907
-html-generator/src/plugin/types/ir.ts 96e5224071
+html-generator/src/plugin/types/ir.ts f442d26d2d
 html-generator/src/plugin/variables/variable-collector.ts 0bd459e1ce
 html-generator/src/plugin/variables/varvar/collectionToCSS.ts 46479782a6
 html-generator/src/plugin/variables/varvar/collectionToCSV.ts 731da3ae69
@@ -27,7 +28,7 @@ html-generator/src/plugin/variables/varvar/stringTransformation.ts 38fce6f20f
 html-generator/src/plugin/variables/varvar/types.ts 868f5bd92c
 html-generator/src/plugin/variables/varvar/units.ts df98ef28f0
 html-generator/src/plugin/variables/varvar/variableUtils.ts 7db3c53ebd
-html-generator/src/shared/component-registry.ts 942cfb5c63
+html-generator/src/shared/component-registry.ts 5d9c9c2d10
 html-generator/src/shared/constants.ts 7aba7aed66
 html-generator/src/shared/fluid.ts 8a43927acb
 html-generator/src/shared/font-metrics.ts a88a0766c3

@@ -240,40 +240,43 @@ function extractDataImages(text, files) {
     const path = 'assets/' + (h >>> 0).toString(36) + b64.length.toString(36) + '.' + (kind === 'jpeg' ? 'jpg' : kind); if (!files.has(path)) files.set(path, b64); return path;
   });
 }
-const VIEWER_CSS = '*{box-sizing:border-box}html,body{margin:0;min-height:100%}body{font:13px/1.4 system-ui,-apple-system,"Inter",sans-serif;background:#ececee;color:#111}.bar{position:fixed;top:0;left:0;right:0;height:44px;background:#fff;border-bottom:1px solid #e5e5e5;display:flex;align-items:center;gap:12px;padding:0 16px;z-index:10}.bar a{color:#111;text-decoration:none;font-weight:600}.bar .t{color:#6b6b6b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar .sp{flex:1}select{font:inherit;border:1px solid #d2d2d7;border-radius:8px;padding:3px 8px;background:#fff}.stage{padding:64px 24px 40px;display:flex;gap:24px;justify-content:center;align-items:flex-start}.pane{background:#fff;box-shadow:0 0 0 1px #e5e5e5,0 8px 24px rgba(0,0,0,.08);overflow:hidden}.frame{position:relative;overflow:hidden}:where(.frame,.frame *,.frame *::before,.frame *::after){box-sizing:border-box;margin:0;padding:0}:where(.frame button){font:inherit;color:inherit;background:transparent;border:none;cursor:pointer;text-align:inherit}:where(.frame img){display:block;max-width:100%}.frame{-webkit-font-smoothing:antialiased}';
-function refDoc(M, r, fileOf, themes, vars, x) {
-  x = x || {}; const map = {}; (r.links || []).forEach(id => { if (fileOf[id]) map[id] = fileOf[id]; });
-  const th = themes.length ? '<select id="th" aria-label="Theme"><option value="">Theme: default</option>' + themes.map(t => '<option value="' + escH(t.key) + '">' + escH(t.label) + '</option>').join('') + '</select>' : '';
-  return '<!doctype html>\n<html lang="en"' + (r.rtl ? ' dir="rtl"' : '') + '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escH(r.name) + ' — reference</title>' + fontsLink(r.fonts) + (x.hasFonts ? '<link rel="stylesheet" href="fonts.css">' : '') + '\n<style>\n' + vars + '\n' + VIEWER_CSS + '\n' + (r.css || '') + '\n</style></head><body>\n' +
-    '<div class="bar" dir="ltr"><a href="index.html">← All frames</a><span class="t">' + escH(r.page) + ' / ' + escH(r.name) + ' · ' + r.w + '×' + r.h + '</span><span class="sp"></span>' + th + '</div>\n' +
-    '<div class="stage" dir="ltr"><div class="pane"><div class="frame"' + (r.rtl ? ' dir="rtl"' : '') + ' style="width:' + r.w + 'px;height:' + r.h + 'px">\n' + r.body + '\n</div></div></div>\n' +
-    '<script>(function(){var MAP=' + JSON.stringify(map) + ';var th=document.getElementById("th");if(th)th.onchange=function(){if(this.value)document.documentElement.setAttribute("data-theme",this.value);else document.documentElement.removeAttribute("data-theme")};' +
-    'document.querySelectorAll("[data-go]").forEach(function(el){el.addEventListener("click",function(e){var f=MAP[el.getAttribute("data-go")];if(f){e.stopPropagation();location.href=f}})});})();</script></body></html>\n';
+const REF_CSS = '*{box-sizing:border-box;margin:0;padding:0}body{background:#fff;-webkit-font-smoothing:antialiased}:where(body button){font:inherit;color:inherit;background:transparent;border:none;cursor:pointer;text-align:inherit}:where(body img){display:block;max-width:100%}';
+/** File name for a frame: the frame's own name, only made filesystem-safe. */
+function refFileName(name, used) {
+  const clean = String(name).replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'frame';
+  let k = clean, i = 2; while (used[k.toLowerCase()]) k = clean + ' (' + i++ + ')';
+  used[k.toLowerCase()] = 1; return k + '.html';
 }
-function refIndex(M, refs, fileOf, pack, x) {
-  x = x || {}; const custom = x.customFonts || [];
-  const cards = refs.map(r => '<a class="card" href="' + fileOf[r.id] + '"><div class="t">' + escH(r.name) + '</div><div class="m">' + escH(r.page) + ' · ' + r.w + '×' + r.h + ' · ' + r.nodes + ' nodes' + (r.truncated ? ' · truncated' : '') + '</div></a>').join('\n');
-  return '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escH(M.fileName) + ' — reference frames</title>' + (x.hasFonts ? '<link rel="stylesheet" href="fonts.css">' : '') + '\n<style>' + VIEWER_CSS + '.wrap{max-width:1100px;margin:0 auto;padding:32px 24px}h1{font-size:22px;margin:0 0 4px}p{color:#6b6b6b;margin:0 0 20px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}.card{display:block;background:#fff;border-radius:12px;box-shadow:0 0 0 1px #e5e5e5;text-decoration:none;color:#111;overflow:hidden;padding:12px 14px}.card:hover{box-shadow:0 0 0 1px #111}.t{font-weight:600}.m{color:#8e8e93;font-size:12px;margin-top:3px}.note{background:#fff;border-radius:10px;box-shadow:0 0 0 1px #e5e5e5;padding:10px 14px;margin:0 0 16px;color:#6b6b6b;font-size:12px}</style></head><body><div class="wrap"><h1>' + escH(M.fileName) + '</h1><p>' + refs.length + ' frame(s) exported from Figma as HTML. Open a frame to view the rendered markup and switch themes.' + (pack ? ' <a href="icons.html">Icon sheet</a>' : '') + '</p>' +
-    (custom.length ? '<div class="note"><b>Custom fonts:</b> ' + custom.map(escH).join(', ') + '. Copy the font files (e.g. <code>' + escH(custom[0]) + '.woff2</code>, <code>.ttf</code> or <code>.otf</code>) into <code>reference/fonts/</code> so text renders exactly as in Figma; otherwise a fallback font is used.</div>' : '') + '<div class="grid">\n' + cards + '\n</div></div></body></html>\n';
+/** Names are assigned once per analysis, so every document and index agrees. */
+function refFileNames(M) {
+  const refs = M.refs || [], used = {};
+  refs.forEach(r => { if (r.file) used[r.file.toLowerCase()] = 1; });
+  refs.forEach(r => { if (!r.file) r.file = refFileName(r.name, used); });
+  return refs;
 }
-function iconsHtml(M) {
-  const I = (M.icons || []).filter(i => i.svg);
-  return '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><title>Icons — ' + escH(M.fileName) + '</title><style>' + VIEWER_CSS + '.wrap{max-width:1100px;margin:0 auto;padding:32px 24px}h1{font-size:22px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px}.c{background:#fff;border-radius:12px;box-shadow:0 0 0 1px #e5e5e5;padding:14px;text-align:center}.c .i{height:48px;display:grid;place-items:center}.c .i svg{max-width:40px;max-height:40px}.c b{display:block;font-size:11px;margin-top:8px;word-break:break-word}.c span{font-size:11px;color:#8e8e93}</style></head><body><div class="wrap"><h1>Icons' + (M.iconPack ? ' · ' + escH(M.iconPack) : '') + '</h1><div class="grid">\n' +
-    I.map(i => '<div class="c"><div class="i">' + i.svg + '</div><b>' + escH(i.name) + '</b><span>Icon · ' + i.w + '×' + i.h + (i.named ? '' : ' · unnamed') + '</span></div>').join('\n') + '\n</div></div></body></html>\n';
+/** Prototype destinations become the file names of the frames actually in the package. */
+function frameLinks(body, targets) {
+  return body.replace(/data-go="([^"]+)"/g, (m, id) => (targets[id] ? 'data-go="' + targets[id] + '"' : m));
+}
+/** One frame, one HTML file: nothing but the frame and the CSS it needs. */
+function refDoc(M, r, vars) {
+  const fonts = r.fonts || {}, targets = {};
+  refFileNames(M).forEach(x => { targets[x.id] = x.file; });
+  const custom = Object.keys(fonts).filter(f => !isGoogleFont(f)).sort();
+  const own = {}; custom.forEach(f => { own[f] = fonts[f]; });
+  return '<!doctype html>\n<html lang="en"' + (r.rtl ? ' dir="rtl"' : '') + '>\n<head>\n<meta charset="utf-8">\n' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>' + escH(r.name) + '</title>\n' + fontsLink(fonts) +
+    '<!-- Figma frame "' + escH(r.name) + '" (' + escH(r.page) + ') · ' + r.w + '×' + r.h + ' px · rendered by ' + escH(r.engine || 'the HTML engine') + '. Values come from the token variables below; see tokens.css. -->\n' +
+    '<style>\n' + vars + '\n' + REF_CSS + '\n' + (r.css || '') + '\n' +
+    (custom.length ? '/* Custom fonts are not on Google Fonts: drop ' + custom.map(f => '"' + f + '.woff2"').join(', ') + ' into a fonts/ folder next to this file. */\n' + fontsCss(own) + '\n' : '') +
+    '</style>\n</head>\n<body>\n' + frameLinks(r.body, targets) + '\n</body>\n</html>\n';
 }
 function referenceFiles(M, toks) {
-  const files = [], refs = M.refs || [], used = {}, fileOf = {}, themes = [], seen = {}, embed = !!M.refEmbed, bin = new Map(), allFonts = {};
-  (M.collections || []).forEach(c => c.modes.slice(1).forEach(m => { const k = styleSlug(m); if (!seen[k]) { seen[k] = 1; themes.push({ key: k, label: m }); } }));
-  refs.forEach(r => { fileOf[r.id] = fileSlug(r.name, used) + '.html'; Object.keys(r.fonts || {}).forEach(f => { allFonts[f] = (allFonts[f] || []).concat(r.fonts[f]); }); });
-  const fcss = fontsCss(allFonts), custom = Object.keys(allFonts).filter(f => !isGoogleFont(f)).sort();
+  const files = [], refs = refFileNames(M), embed = !!M.refEmbed, bin = new Map();
   refs.forEach(r => {
     if (!embed) (r.files || []).forEach(f => bin.set(f.path, f.base64));
-    files.push({ path: 'reference/' + fileOf[r.id], content: refDoc(M, r, fileOf, themes, tokensCss(M, toks, new Set(r.vars || [])).content, { hasFonts: !!fcss }), tier: 0 });
+    files.push({ path: 'reference/' + r.file, content: refDoc(M, r, tokensCss(M, toks, new Set(r.vars || [])).content), tier: 0 });
   });
-  const hasIcons = (M.icons || []).some(i => i.svg);
-  if (refs.length) files.push({ path: 'reference/index.html', content: refIndex(M, refs, fileOf, hasIcons, { customFonts: custom, hasFonts: !!fcss }), tier: 0 });
-  if (fcss) files.push({ path: 'reference/fonts.css', content: '/* Custom fonts used by the exported frames. Add the font files to reference/fonts/ (same name as the family). */\n' + fcss + '\n', tier: 0 });
-  if (hasIcons) files.push({ path: 'reference/icons.html', content: iconsHtml(M), tier: 0 });
   bin.forEach((b64, p) => files.push({ path: 'reference/' + p, content: b64, binary: true, tier: 0 }));
   return files;
 }
@@ -293,6 +296,13 @@ const LEVELS = [
   ['Open', 'Maximum creative freedom: treat the system as a visual language and propose new tokens, components and patterns.', 'Write a literal value inline. Every value is a token or a named proposed token.', 'Add it to a "Proposed tokens" list (name, value, reason) and reference it by that name.']
 ];
 const clampLevel = n => Math.max(0, Math.min(10, Math.round(Number(n))) || 0);
+/** The slider's five positions, each mapped to a real level of ai-control.md. */
+const CREATIVITY_STEPS = [['Strict', 0, 100], ['Conservative', 2, 80], ['Balanced', 5, 60], ['Creative', 7, 40], ['Open', 10, 20]];
+function levelPicker() {
+  return CREATIVITY_STEPS.map((s, position) => ({
+    position, label: s[0], adherence: s[1], rule: s[2], creative: 100 - s[2], levelName: LEVELS[s[1]][0]
+  }));
+}
 function levelLine(n) { const L = LEVELS[clampLevel(n)]; return 'Level ' + clampLevel(n) + ' — ' + L[0] + '. You may: ' + L[1] + ' You must not: ' + L[2] + ' If something is missing: ' + L[3]; }
 function aiControlMd(level) {
   const n = clampLevel(level), L = LEVELS[n];
@@ -306,7 +316,7 @@ function aiControlMd(level) {
 function skillMd(M, X) {
   const comps = M.components || [], refs = M.refs || [], html = (M.componentHtml && M.componentHtml.ok) || [];
   const files = ['`design.md` — rules and overview', '`tokens.css` — every value', '`components.css` + `components/*.html` — component markup and spec', '`components/index.json` — component registry'];
-  if (refs.length) files.push('`reference/*.html` — visual reference pages');
+  if (refs.length) files.push('`reference/*.html` — one file per frame, that frame only');
   files.push('`manifest.json` — sources, entities and outputs');
   return '---\nname: ' + slug(M.fileName || 'design-system') + '-design-system\ndescription: Design system exported from the Figma file "' + (M.fileName || '') + '". Use when building UI that must follow these tokens, components and rules.\n---\n' +
     '# ' + (M.fileName || 'Design System') + ' — agent entrypoint\n\n' +
@@ -324,7 +334,7 @@ function skillMd(M, X) {
     '- Read `ai-control.md` before creative work: its `adherence_level` controls how far you may deviate.\n\n' +
     '## Inventory\n\n' + tbl(['Item', 'Count'], [['Tokens', (M.tokens || []).length], ['Components', comps.length], ['Component HTML', html.length], ['Icons', X && X.icons ? X.icons.total : 0], ['Reference pages', refs.length], ['Text styles', M.styles.text.length]]) +
     (comps.length ? '\n## Components\n\n' + comps.slice(0, 40).map(c => '- ' + c.name + ' (' + c.kind + ', ' + c.variants + ' variant(s))').join('\n') + '\n' : '') +
-    (refs.length ? '\n## References\n\n' + refs.slice(0, 40).map(r => '- ' + r.name + ' → `reference/' + slug(r.name) + '.html`').join('\n') + '\n' : '');
+    (refs.length ? '\n## References\n\n' + refFileNames(M).slice(0, 40).map(r => '- ' + r.name + ' → `reference/' + r.file + '`').join('\n') + '\n' : '');
 }
 
 const r2n = v => Math.round(v * 100) / 100;
@@ -609,6 +619,11 @@ function gen(M, mode, rejected, rejInf) {
   files.push({ path: 'SKILL.md', content: skillMd(M, X), tier: 0 });
   referenceFiles(M, toks).forEach(f => files.push(f));
   const CH = M.componentHtml || { ok: [], failed: [] }, compFiles = {};
+  const compUsed = {};
+  refFileNames(M).forEach(r => (r.components || []).forEach(u => {
+    const page = r.file || r.name + '.html';
+    [u.id, u.familyId].forEach(k => { if (k) ((compUsed[k] = compUsed[k] || new Set()).add(page)); });
+  }));
   if (!minimal && CH.ok.length) {
     const used = {}, rows = [];
     let ccss = '/* Component HTML rendered by ' + (CH.engine || 'the HTML engine') + '. Values come from tokens.css. */\n';
@@ -618,7 +633,7 @@ function gen(M, mode, rejected, rejInf) {
       ccss += '\n/* ' + c.name + ' */\n' + c.css + '\n';
       const doc = '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>' + escH(c.name) + ' — component</title>\n<link rel="stylesheet" href="../tokens.css">\n<link rel="stylesheet" href="../components.css">\n</head>\n<body style="margin:24px;background:#fff">\n' + c.html + '\n</body>\n</html>\n';
       files.push({ path: file, content: doc, tier: 1 });
-      rows.push({ id: c.id, name: c.name, figmaId: c.figmaId, className: c.className, file, width: c.w, height: c.h, nodes: c.nodes, vars: c.vars });
+      rows.push({ id: c.id, name: c.name, figmaId: c.figmaId, className: c.className, file, width: c.w, height: c.h, nodes: c.nodes, vars: c.vars, metadata: c.meta || null, usedIn: Array.from(compUsed[c.figmaId] || (c.meta && compUsed[c.meta.familyId]) || []).sort() });
     });
     files.push({ path: 'components.css', content: ccss, tier: 0 });
     files.push({ path: 'components/index.json', content: JSON.stringify({ schemaVersion: '1.0.0', engine: CH.engine || null, components: rows, failed: CH.failed }, null, 2), tier: 1 });
@@ -638,7 +653,7 @@ function gen(M, mode, rejected, rejInf) {
   const readOrder = [['SKILL.md', 'Agent entrypoint: read order, authority, inventory', sizeOf(fileOf('SKILL.md'))], ['design.md', 'Rules, typography, overview', 'this file'], ['tokens.css', 'ALL values: variables, text classes, shadows (single source of truth)', sizeOf(fileOf('tokens.css'))], ['ai-control.md', 'Creative freedom level (read before every task)', sizeOf(fileOf('ai-control.md'))],
     ['components.md', 'Component list, sizes and Spec CSS; open only the component you need', sizeOf(fileOf('components.md'))], ['tokens.md', 'Explains tokens: names, usage, gaps', sizeOf(fileOf('tokens.md'))], ['content.md', 'Product, users, screens (context only)', sizeOf(fileOf('content.md'))],
     ['validation.md', 'Design-system health and what to fix', '≈ ' + estTokens(validationBase) + ' tokens']].filter(r => present(r[0]));
-  const pkgLine = pkgNames.filter(present).join(', ') + (hasRefs ? ', reference/ (HTML)' : '') + (M.componentHtml && M.componentHtml.ok.length ? ', components/ (HTML)' : '');
+  const pkgLine = pkgNames.filter(present).join(', ') + (hasRefs ? ', reference/ (one HTML per frame)' : '') + (M.componentHtml && M.componentHtml.ok.length ? ', components/ (HTML)' : '');
   let d = '# Design System\n\n## Overview\n\n- Source: Figma file "' + M.fileName + '"\n- Scope: ' + (M.pages.join(', ') || 'none') + '\n- Entities: ' + toks.length + ' tokens' + (X.derived.length ? ' (+' + X.derived.length + ' derived)' : '') + ', ' + M.components.length + ' components, ' + (X.icons ? X.icons.total + ' icons (' + (X.icons.pack || 'pack not provided') + '), ' : '') + nStyles + ' styles\n' +
     (covPct === null ? '' : '- Variable coverage: ' + cs.bound + ' of ' + cs.total + ' style properties in components use Figma variables (' + covPct + '%); the rest use derived or nearest tokens, so Spec CSS never needs literals.\n') + '- Dependency policy: ' + M.depPolicy + ' (' + M.depSummary.tokens + ' token(s), ' + M.depSummary.components + ' component(s) included as dependencies)\n- Package: ' + pkgLine + '\n';
   d += '\n### Read order\n\n' + tbl(['File', 'Purpose', 'Size'], readOrder.map(r => ['`' + r[0] + '`', r[1], r[2]])) + RULES_PLACEHOLDER;
@@ -730,7 +745,7 @@ async function discover() {
   const pages = figma.root.children.map(p => {
     const found = p.findAllWithCriteria({ types: ['COMPONENT', 'COMPONENT_SET'] }).filter(n => !(n.type === 'COMPONENT' && n.parent && n.parent.type === 'COMPONENT_SET'));
     found.forEach(n => { const b = n.type === 'COMPONENT_SET' ? (n.children[0] || n) : n; const ic = iconScore(descN++ < 600 ? Object.assign(describe(b), { name: n.name }) : { name: n.name, w: b.width, h: b.height, page: p.name, types: [], hasText: false }); comps.push({ id: n.id, name: n.name, pageId: p.id, page: p.name, kind: n.type === 'COMPONENT_SET' ? 'component-set' : 'component', variants: n.type === 'COMPONENT_SET' ? n.children.length : 1, excluded: EXC.test(n.name), icon: ic.isIcon, iconConf: ic.score }); });
-    return { id: p.id, name: p.name, frames: p.children.length, components: found.length, recommendation: EXC.test(p.name) ? 'Excluded' : REC.test(p.name) ? 'Recommended' : 'Review' };
+    return { id: p.id, name: p.name, frames: p.children.filter(c => c.type === 'FRAME' || c.type === 'SECTION').length, components: found.length, recommendation: EXC.test(p.name) ? 'Excluded' : REC.test(p.name) ? 'Recommended' : 'Review' };
   });
   const [vars, cols, ps, ts, es] = await Promise.all([figma.variables.getLocalVariablesAsync(), figma.variables.getLocalVariableCollectionsAsync(),
     figma.getLocalPaintStylesAsync(), figma.getLocalTextStylesAsync(), figma.getLocalEffectStylesAsync()]);
@@ -739,13 +754,26 @@ async function discover() {
   const collections = cols.map(c => ({ id: c.id, name: c.name, excluded: EXC.test(c.name), modes: c.modes.length, variables: vars.filter(v => v.variableCollectionId === c.id).length }));
   const styleList = [].concat(ts.map(x => ({ id: x.id, kind: 'text', name: x.name })), ps.map(x => ({ id: x.id, kind: 'paint', name: x.name })), es.map(x => ({ id: x.id, kind: 'effect', name: x.name })));
   const saved = await figma.clientStorage.getAsync('sel2'), settings = await figma.clientStorage.getAsync('settings');
-  post('discover', { fileName: figma.root.name, pages, collections, comps, cats, vcount, styleList, saved, settings, engine: engineInfo(),
+  post('discover', { fileName: figma.root.name, pages, collections, comps, cats, vcount, styleList, saved, settings, engine: engineInfo(), steps: levelPicker(),
     counts: { pages: pages.length, collections: cols.length, variables: vars.length, styles: ps.length + ts.length + es.length, components: comps.length } });
 }
 
 // ---------- Figma-side helpers: icons, styles, frames ----------
 let ICON = { cache: {}, map: {}, smallN: 0 }, BYID = {}, STYN = {};
-const topFrames = page => { const o = []; page.children.forEach(c => { if (c.type === 'FRAME') o.push(c); else if (c.type === 'SECTION') c.children.forEach(k => { if (k.type === 'FRAME') o.push(k); }); }); return o; };
+// The canvases a page offers for references and screens: frames at page level or
+// inside sections at any depth. Descent goes through SECTION only and stops at the
+// first frame, so a frame nested inside a design is never offered on its own.
+async function topFrames(page) {
+  const out = [];
+  async function walk(n) {
+    for (const c of n.children || []) {
+      if (c.type === 'SECTION') { try { if (typeof c.loadAsync === 'function') await c.loadAsync(); } catch (e) { /* section not readable */ } await walk(c); }
+      else if (c.type === 'FRAME') out.push(c);
+    }
+  }
+  await walk(page);
+  return out;
+}
 function describe(n) {
   const types = new Set([n.type]); let hasText = n.type === 'TEXT';
   try { (n.findAll ? n.findAll(() => true) : []).slice(0, 60).forEach(c => { types.add(c.type); if (c.type === 'TEXT') hasText = true; }); } catch (e) { /* ignore */ }
@@ -795,7 +823,7 @@ async function scanFrames(pageIds) {
   let n = 0; SHEETS = new Set();
   for (const pid of pageIds) {
     const page = await figma.getNodeByIdAsync(pid); if (!page || page.type !== 'PAGE') continue;
-    for (const fr of topFrames(page)) {
+    for (const fr of await topFrames(page)) {
       if (n++ >= 80) return;
       const insts = fr.findAllWithCriteria({ types: ['INSTANCE'] }).slice(0, 800);
       let iconInst = 0;
@@ -977,10 +1005,11 @@ async function rescanIcons(msg) {
 }
 async function listFrames(msg) {
   await figma.loadAllPagesAsync(); const out = [], names = [], t0 = Date.now();
+  for (const k in THUMBS) delete THUMBS[k];
   for (const pid of msg.pageIds) {
     const page = await figma.getNodeByIdAsync(pid); if (!page || page.type !== 'PAGE') continue;
     await page.loadAsync(); names.push(page.name);
-    for (const f of topFrames(page).slice(0, 80)) { let inst = null; if (Date.now() - t0 < 4000) { try { inst = f.findAllWithCriteria({ types: ['INSTANCE'] }).length; } catch (e) { inst = null; } } out.push({ id: f.id, name: f.name, page: page.name, w: Math.round(f.width), h: Math.round(f.height), instances: inst, excluded: EXC.test(f.name) || EXC.test(page.name) }); }
+    for (const f of await topFrames(page)) { let inst = null; if (Date.now() - t0 < 4000) { try { inst = f.findAllWithCriteria({ types: ['INSTANCE'] }).length; } catch (e) { inst = null; } } out.push({ id: f.id, name: f.name, page: page.name, w: Math.round(f.width), h: Math.round(f.height), instances: inst, excluded: EXC.test(f.name) || EXC.test(page.name) }); }
   }
   const rec = out.filter(f => !f.excluded && f.w >= 280 && (f.instances || 0) >= 3).sort((a, b) => (b.instances || 0) - (a.instances || 0)).slice(0, 10).map(f => f.id);
   out.forEach(f => f.recommended = rec.includes(f.id));
@@ -988,24 +1017,29 @@ async function listFrames(msg) {
   post('frames', { frames: out, draft: { product: figma.root.name, description: 'Design system file with ' + (c.components || 0) + ' component(s), ' + (c.tokens || 0) + ' token(s) and ' + (c.styles || 0) + ' style(s) across ' + names.length + ' page(s).', inferences: inferFromFrames(out, names.concat(out.map(f => f.name), msg.compNames || [])) } });
 }
 const THUMBS = {};
+const THUMB_CAPS = { card: [360, 700, 350000], full: [1500, 4000, 2000000] };
 async function frameThumb(msg) {
   const id = msg.id; if (!id) return;
-  if (THUMBS[id] !== undefined) { post('frame-thumb', { id, dataUrl: THUMBS[id] }); return; }
+  const size = msg.size === 'full' ? 'full' : 'card', cap = THUMB_CAPS[size], key = id + ':' + size;
+  if (THUMBS[key] !== undefined) { post('frame-thumb', { id, size, dataUrl: THUMBS[key] }); return; }
   try {
     const n = await figma.getNodeByIdAsync(id);
     if (!n) throw new Error('Frame is no longer in the file');
     if (typeof n.loadAsync === 'function') await n.loadAsync();
     const w = Math.max(1, n.width), h = Math.max(1, n.height);
-    const scale = Math.min(1, 360 / w, 700 / h);
-    let b = await n.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: scale } });
-    if (b.length > 350000) b = await n.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: scale * 0.55 } });
-    if (b.length > 350000) throw new Error('Preview is too large');
+    let scale = Math.min(1, cap[0] / w, cap[1] / h), b = new Uint8Array(1);
+    for (let i = 0; i < 4; i++) {
+      b = await n.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: scale } });
+      if (b.length <= cap[2]) break;
+      scale *= 0.6;
+    }
+    if (b.length > cap[2]) throw new Error('This frame is too heavy to preview in the panel');
     const dataUrl = 'data:image/png;base64,' + figma.base64Encode(b);
-    THUMBS[id] = dataUrl;
-    post('frame-thumb', { id, dataUrl });
+    THUMBS[key] = dataUrl;
+    post('frame-thumb', { id, size, dataUrl, w: Math.round(n.width), h: Math.round(n.height), pw: Math.round(w * scale), ph: Math.round(h * scale) });
   } catch (e) {
-    THUMBS[id] = '';
-    post('frame-thumb', { id, error: String((e && e.message) || e) });
+    THUMBS[key] = '';
+    post('frame-thumb', { id, size, error: String((e && e.message) || e) });
   }
 }
 
@@ -1036,10 +1070,10 @@ async function refFrame(nd, byId, E, tokMap, sel) {
   if (E) {
     try {
       const r = await E.exportFrame(nd, tokMap, { matchColorsByValue: sel.refMatchColors !== false, embedImages: embed });
-      return { id: nd.id, name: nd.name, page: pageOf(nd), w: r.width, h: r.height, nodes: r.nodes, truncated: false, body: r.bodyHtml, css: r.css, files: r.files || [], engine: r.engine + '@' + r.version, rtl: r.rtl, links: r.links, fonts: r.fonts, vars: r.vars, notes: [...(r.notes || [])] };
+      return { id: nd.id, name: nd.name, page: pageOf(nd), w: r.width, h: r.height, nodes: r.nodes, truncated: false, body: r.bodyHtml, css: r.css, files: r.files || [], engine: r.engine + '@' + r.version, rtl: r.rtl, links: r.links, fonts: r.fonts, vars: r.vars, components: r.components || [], notes: [...(r.notes || [])] };
     } catch (e) { engineErr = String((e && e.message) || e); }
   }
-  const rec = await frameRef(nd, byId); rec.css = rec.css || ''; rec.files = [];
+  const rec = await frameRef(nd, byId); rec.css = rec.css || ''; rec.files = []; rec.components = [];
   if (!embed) { const m = new Map(); rec.body = extractDataImages(rec.body, m); m.forEach((b64, path) => rec.files.push({ path, base64: b64 })); }
   rec.engine = engineErr ? 'builtin (fallback)' : 'builtin'; if (engineErr) rec.notes = (rec.notes || []).concat(['Rendered with the built-in renderer because the engine failed: ' + engineErr]);
   return rec;
@@ -1145,7 +1179,7 @@ async function buildDraft(sel, quiet) {
     const page = await figma.getNodeByIdAsync(sel.pageIds[pi]);
     if (!page || page.type !== 'PAGE') continue;
     await page.loadAsync(); pagesOut.push(page.name);
-    topFrames(page).forEach(c => { if (screens.length < 200) screens.push({ name: c.name, page: page.name, id: c.id, w: Math.round(c.width) }); });
+    (await topFrames(page)).forEach(c => { if (screens.length < 200) screens.push({ name: c.name, page: page.name, id: c.id, w: Math.round(c.width) }); });
     const found = page.findAllWithCriteria({ types: ['COMPONENT_SET', 'COMPONENT'] }).filter(n => !(n.type === 'COMPONENT' && n.parent && n.parent.type === 'COMPONENT_SET') && (!wanted || wanted.has(n.id)));
     for (let i = 0; i < found.length; i++) {
       say(30 + Math.round(((pi + i / found.length) / sel.pageIds.length) * 50), 'Component: ' + found[i].name);
@@ -1201,7 +1235,7 @@ async function analyze(sel, ctxForm, dd) {
   const icons = Object.values(ICON.map).map(r => ({ id: 'icon.' + slug(r.name), figmaId: r.id, name: r.name, named: !r.unnamed, label: 'Icon', kind: r.kind, w: r.w, h: r.h, confidence: r.score, evidence: r.evidence, usedIn: [...r.usedIn].sort(), svg: '' })).sort((a, b) => (a.named === b.named ? a.name.localeCompare(b.name) : a.named ? -1 : 1));
   if (sel.iconSvg) { prog(92, 'Exporting icon SVG…'); for (const ic of icons.slice(0, 150)) { try { const c = ICON.cache[ic.figmaId], sv = c && c.base ? await c.base.exportAsync({ format: 'SVG_STRING' }) : ''; ic.svg = sv && sv.length <= 8000 ? sv.replace(/<\?xml[^>]*>\s*/, '') : ''; } catch (e) { /* skip */ } } }
   const refs = [], refReport = { ok: [], failed: [] };
-  for (const id of (sel.refFrameIds || []).slice(0, 100)) { prog(95, 'Reference frame ' + (refs.length + 1) + '…'); try { const nd = await figma.getNodeByIdAsync(id); if (nd && nd.type === 'FRAME') { const rf = await refFrame(nd, D.byId, getEngine(sel), refTokenMap(tokens, D.styles), sel); refs.push(rf); refReport.ok.push({ id: rf.id, name: rf.name, nodes: rf.nodes, engine: rf.engine, images: (rf.files || []).length, notes: rf.notes || [] }); } else refReport.failed.push({ id, name: nd ? nd.name : id, reason: 'Not a top-level frame' }); } catch (e) { const why = String((e && e.message) || e); refReport.failed.push({ id, name: id, reason: why }); issues.push({ code: 'REFERENCE_FAILED', severity: 'warning', entityId: id, message: 'Frame could not be converted to code: ' + why, recovery: 'Deselect it or simplify the frame.' }); } }
+  for (const id of (sel.refFrameIds || [])) { prog(95, 'Reference frame ' + (refs.length + 1) + '…'); try { const nd = await figma.getNodeByIdAsync(id); if (nd && nd.type === 'FRAME') { const rf = await refFrame(nd, D.byId, getEngine(sel), refTokenMap(tokens, D.styles), sel); refs.push(rf); refReport.ok.push({ id: rf.id, name: rf.name, nodes: rf.nodes, engine: rf.engine, images: (rf.files || []).length, notes: rf.notes || [] }); } else refReport.failed.push({ id, name: nd ? nd.name : id, reason: 'Not a top-level frame' }); } catch (e) { const why = String((e && e.message) || e); refReport.failed.push({ id, name: id, reason: why }); issues.push({ code: 'REFERENCE_FAILED', severity: 'warning', entityId: id, message: 'Frame could not be converted to code: ' + why, recovery: 'Deselect it or simplify the frame.' }); } }
   const E = getEngine(sel), compExport = { ok: [], failed: [], engine: E ? E.id + '@' + E.version : null };
   if (E && typeof E.exportComponent === 'function' && sel.componentHtml !== false) {
     prog(96, 'Rendering component HTML…');
@@ -1211,7 +1245,7 @@ async function analyze(sel, ctxForm, dd) {
         const nd = await figma.getNodeByIdAsync(c.figmaId);
         if (!nd) throw new Error('Node is no longer in the file');
         const r = await E.exportComponent(nd, tokMap, { matchColorsByValue: sel.refMatchColors !== false, embedImages: true }, classNames);
-        compExport.ok.push({ id: c.id, name: c.name, figmaId: c.figmaId, className: r.className, html: r.html, css: r.css, w: r.width, h: r.height, nodes: r.nodes, vars: r.vars });
+        compExport.ok.push({ id: c.id, name: c.name, figmaId: c.figmaId, className: r.className, html: r.html, css: r.css, w: r.width, h: r.height, nodes: r.nodes, vars: r.vars, meta: r.metadata || null });
       } catch (e) { compExport.failed.push({ id: c.id, name: c.name, reason: String((e && e.message) || e) }); }
     }
     if (designComps.length > cap) compExport.failed.push({ id: '', name: '', reason: 'Component HTML limit reached (' + cap + ')' });
@@ -1219,7 +1253,7 @@ async function analyze(sel, ctxForm, dd) {
   const nSty = D.styles.text.length + D.styles.paint.length + D.styles.effect.length, autoDesc = 'Design system file with ' + designComps.length + ' component(s), ' + tokens.length + ' token(s) and ' + nSty + ' style(s) across ' + D.pagesOut.length + ' page(s).';
   D.cols.filter(c => sel.collectionIds.includes(c.id)).forEach(c => facts.push('Variable collection "' + c.name + '" has ' + c.modes.length + ' mode(s): ' + c.modes.map(m => m.name).join(', ')));
   if (designComps.length) facts.push('Selected scope contains ' + designComps.length + ' component(s) or component set(s).');
-  MODEL = { icons, iconPack: sel.iconPack || '', refs, refEmbed: sel.refEmbedImages === true, rootVars: rootVars(tokens), fileName: figma.root.name, pages: D.pagesOut, tokens, styles: D.styles, components: designComps, screens: D.screens, collections: D.cols.filter(c => sel.collectionIds.includes(c.id)).map(c => ({ name: c.name, modes: c.modes.map(m => m.name) })),
+  MODEL = { icons, iconPack: sel.iconPack || '', adherence: sel.adherence === undefined || sel.adherence === null ? 3 : clampLevel(sel.adherence), refs, refEmbed: sel.refEmbedImages === true, rootVars: rootVars(tokens), fileName: figma.root.name, pages: D.pagesOut, tokens, styles: D.styles, components: designComps, screens: D.screens, collections: D.cols.filter(c => sel.collectionIds.includes(c.id)).map(c => ({ name: c.name, modes: c.modes.map(m => m.name) })),
     componentHtml: compExport,
     sections: sel.sections || {}, context: cm === 'skip' ? buildContext({}, facts, []) : buildContext(ctxForm, facts, figInf, { name: figma.root.name, description: autoDesc }), contentPack: cm !== 'skip', ctxMode: cm, depPolicy: sel.depPolicy,
     depSummary: { tokens: tokens.filter(t => t.origin === 'dependency').length, components: components.filter(c => c.origin === 'dependency').length } };
@@ -1297,11 +1331,11 @@ if (typeof figma !== 'undefined') figma.ui.onmessage = async msg => {
     }
     else if (msg.type === 'parse-context') post('context-parsed', parseContext(msg.text));
     else if (msg.type === 'analyze') await analyze(msg.sel, msg.ctx, msg.dd);
-    else if (msg.type === 'generate') { if (!MODEL) throw new Error('Run the analysis first.'); MODEL.adherence = msg.adherence === undefined ? 3 : msg.adherence; { const out = gen(MODEL, msg.mode, msg.rejected, msg.rejInf); sendFiles(out, MODEL.lint); } }
+    else if (msg.type === 'generate') { if (!MODEL) throw new Error('Run the analysis first.'); if (msg.adherence !== undefined && msg.adherence !== null) MODEL.adherence = clampLevel(msg.adherence); { const out = gen(MODEL, msg.mode, msg.rejected, msg.rejInf); sendFiles(out, MODEL.lint); } }
     else if (msg.type === 'build') await build(msg.items);
     else if (msg.type === 'settings-set') await figma.clientStorage.setAsync('settings', msg.data);
     else if (msg.type === 'reset') { await figma.clientStorage.deleteAsync('sel2'); figma.notify('Saved selection cleared'); }
     else if (msg.type === 'close') figma.closePlugin();
   } catch (e) { post('error', { message: String((e && e.message) || e) }); }
 };
-if (typeof module !== 'undefined') module.exports = { sendFiles, uiSize, extractDataImages, refDoc, refIndex, validate, enrichModel, lintPackage, aggregateIssues, uniquifyComponents, matchTextStyle, nearestColor, guessPack, engineInfo, refTokenMap, aiControlMd, levelLine, referenceFiles, tokensCss, cssVar, iconScore, inferFromFrames, buildPrompt, promptData, referenceMd, iconsMd, parseContext, buildContext, ctxMd, contentMd, planDependencies, applyPolicy, resolve, gen };
+if (typeof module !== 'undefined') module.exports = { sendFiles, uiSize, levelPicker, extractDataImages, refDoc, refFileNames, refFileName, validate, enrichModel, lintPackage, aggregateIssues, uniquifyComponents, matchTextStyle, nearestColor, guessPack, engineInfo, refTokenMap, aiControlMd, levelLine, referenceFiles, tokensCss, cssVar, iconScore, inferFromFrames, buildPrompt, promptData, referenceMd, iconsMd, parseContext, buildContext, ctxMd, contentMd, planDependencies, applyPolicy, resolve, gen };

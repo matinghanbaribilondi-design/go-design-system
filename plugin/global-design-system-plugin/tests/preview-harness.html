@@ -22,6 +22,13 @@ const DISCOVER = {
   collections: [{ id: 'c1', name: 'Primitives', modes: 2, variables: 64 }, { id: 'c2', name: 'Semantic', modes: 2, variables: 38 }],
   comps: [], counts: { pages: 4, collections: 2, variables: 102, styles: 27, components: 27 },
   saved: null,
+  steps: [
+    { position: 0, label: 'Strict', adherence: 0, rule: 100, creative: 0, levelName: 'Strict' },
+    { position: 1, label: 'Conservative', adherence: 2, rule: 80, creative: 20, levelName: 'Faithful' },
+    { position: 2, label: 'Balanced', adherence: 5, rule: 60, creative: 40, levelName: 'Flexible' },
+    { position: 3, label: 'Creative', adherence: 7, rule: 40, creative: 60, levelName: 'Creative' },
+    { position: 4, label: 'Open', adherence: 10, rule: 20, creative: 80, levelName: 'Open' }
+  ],
   engine: { available: true, id: 'fig-engine', version: '1.0.0', capabilities: ['frame', 'component'] }
 };
 
@@ -33,6 +40,17 @@ const FRAMES = { frames: [
 ]};
 
 const SUMMARY = { pages: 2, tokens: 102, deps: 12, components: 27, componentsHtml: 27, styles: 27, screens: 4, icons: 31, refs: 4 };
+
+// What Reload should reveal: one frame renamed, one deleted, one added.
+let framesReq = 0;
+const framesAfter = n => {
+  if (n < 2) return FRAMES;
+  const f = FRAMES.frames.map(x => Object.assign({}, x));
+  f[1].name = 'Pricing 2026';
+  f.splice(f.findIndex(x => x.id === 'f3'), 1);
+  f.push({ id: 'f5', name: 'Checkout', page: 'Design System', w: 1440, h: 900, instances: 11, recommended: true, excluded: false });
+  return { frames: f };
+};
 
 const FILES = [
   ['SKILL.md', '# Global Design System\n\nRead tokens.css first.'],
@@ -48,14 +66,11 @@ const FILES = [
   ['components/index.json', '{"components":27}'],
   ['components/button.html', '<!doctype html><html><body><button class="button">Hi</button></body></html>'],
   ['components/input.html', '<!doctype html><html><body><input class="input"></body></html>'],
-  ['reference/index.html', '<!doctype html><html><body>index</body></html>'],
-  ['reference/home.html', '<!doctype html><html><body>home</body></html>'],
-  ['reference/pricing.html', '<!doctype html><html><body>pricing</body></html>'],
-  ['reference/settings.html', '<!doctype html><html><body>settings</body></html>'],
-  ['reference/dashboard.html', '<!doctype html><html><body>dashboard</body></html>'],
-  ['reference/icons.html', '<!doctype html><html><body>icons</body></html>'],
-  ['reference/tokens.css', '--ref-only:1;'],
-  ['reference/fonts.css', '@font-face{font-family:Inter}']
+  ['reference/Home.html', '<!doctype html><html><body><div class="home">Home frame, only the frame</div></body></html>'],
+  ['reference/Pricing.html', '<!doctype html><html><body><div class="pricing">Pricing frame</div></body></html>'],
+  ['reference/Settings.html', '<!doctype html><html><body><div class="settings">Settings frame</div></body></html>'],
+  ['reference/Dashboard.html', '<!doctype html><html><body><div class="dashboard">Dashboard frame</div></body></html>'],
+  ['reference/assets/hero.png', 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', true]
 ];
 
 let timer = null;
@@ -76,22 +91,24 @@ window.addEventListener('message', (e) => {
   if (!m) return;
   if (m.type === 'discover') { setTimeout(() => reply('discover', DISCOVER), 100); return; }
   if (m.type === 'resize') { applySize(m.w, m.h, m.commit); return; }
-  if (m.type === 'frames') { setTimeout(() => reply('frames', FRAMES), 200); return; }
+  if (m.type === 'frames') { framesReq++; setTimeout(() => reply('frames', framesAfter(framesReq)), 200); return; }
   if (m.type === 'frame-thumb') {
-    const fr = FRAMES.frames.find(f => f.id === m.id);
+    const fr = framesAfter(framesReq).frames.find(f => f.id === m.id);
     if (!fr) { reply('frame-thumb', { id: m.id, error: 'Frame is no longer in the file' }); return; }
     if (fr.name === 'Settings') { reply('frame-thumb', { id: m.id, error: 'Simulated preview failure' }); return; }
-    const h = Math.round(220 * Math.max(0.75, Math.min(2.5, fr.h / fr.w)));
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="360" height="' + h + '" viewBox="0 0 360 ' + h + '">'
-      + '<rect width="360" height="' + h + '" fill="#eef2f7"/>'
-      + '<rect x="0" y="0" width="360" height="64" fill="#1f2937"/>'
-      + '<circle cx="28" cy="32" r="10" fill="#f9fafb"/>'
-      + '<text x="48" y="38" font-family="Arial" font-size="15" fill="#f9fafb">' + fr.name + '</text>'
-      + '<rect x="24" y="88" width="200" height="14" rx="7" fill="#94a3b8"/>'
-      + '<rect x="24" y="112" width="140" height="9" rx="4" fill="#cbd5e1"/>'
-      + '<rect x="24" y="140" width="312" height="' + Math.max(20, h - 168) + '" rx="10" fill="#dbe3ec"/>'
+    const full = m.size === 'full';
+    const pw = full ? Math.min(1500, fr.w) : 360;
+    const ph = Math.round(pw * fr.h / fr.w);
+    const ruler = Array.from({ length: Math.floor(pw / 60) }, (_, i) => '<text x="' + (i * 60 + 4) + '" y="14" font-family="Arial" font-size="10" fill="#64748b">' + Math.round((i * 60) / (pw / fr.w)) + '</text><line x1="' + (i * 60) + '" y1="18" x2="' + (i * 60) + '" y2="' + ph + '" stroke="#e2e8f0"/>').join('');
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + pw + '" height="' + ph + '" viewBox="0 0 ' + pw + ' ' + ph + '">'
+      + '<rect width="' + pw + '" height="' + ph + '" fill="#eef2f7"/>' + ruler
+      + '<rect x="0" y="0" width="' + pw + '" height="' + Math.round(ph * 0.08) + '" fill="#1f2937"/>'
+      + '<text x="16" y="' + Math.round(ph * 0.05) + '" font-family="Arial" font-size="20" fill="#f9fafb">' + fr.name + ' · ' + fr.w + '×' + fr.h + (full ? ' · full capture' : '') + '</text>'
+      + '<rect x="24" y="' + Math.round(ph * 0.14) + '" width="' + Math.round(pw * 0.55) + '" height="' + Math.round(ph * 0.06) + '" rx="8" fill="#94a3b8"/>'
+      + '<rect x="24" y="' + Math.round(ph * 0.24) + '" width="' + Math.round(pw * 0.38) + '" height="' + Math.round(ph * 0.03) + '" rx="6" fill="#cbd5e1"/>'
+      + '<rect x="24" y="' + Math.round(ph * 0.32) + '" width="' + (pw - 48) + '" height="' + Math.round(ph * 0.6) + '" rx="12" fill="#dbe3ec"/>'
       + '</svg>';
-    reply('frame-thumb', { id: m.id, dataUrl: 'data:image/svg+xml,' + encodeURIComponent(svg) });
+    reply('frame-thumb', { id: m.id, size: full ? 'full' : 'card', dataUrl: 'data:image/svg+xml,' + encodeURIComponent(svg), w: fr.w, h: fr.h, pw: pw, ph: ph });
     return;
   }
   if (m.type === 'analyze') {
@@ -105,7 +122,7 @@ window.addEventListener('message', (e) => {
     window.__log.generate++;
     reply('files-begin', { count: FILES.length });
     FILES.forEach(([path, content, binary]) => {
-      if (path.endsWith('home.html') && !binary) {
+      if (path.endsWith('Home.html') && !binary) {
         reply('file-chunk', { path, i: 0, n: 2, part: content.slice(0, 10), binary: false });
         reply('file-chunk', { path, i: 1, n: 2, part: content.slice(10), binary: false });
         return;

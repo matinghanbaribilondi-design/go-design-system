@@ -285,12 +285,30 @@ export interface IRNode {
   componentOverride?: ComponentOverride;
 }
 
+export type ComponentPropertyValue = string | boolean;
+
+export interface ComponentPropertyDefinition {
+  type: string;
+  defaultValue?: ComponentPropertyValue;
+  variantOptions?: string[];
+}
+
 /** A component instance's link back to its master. */
 export interface ComponentRef {
-  /** Master component id, stable across the document. */
+  /** The concrete master/variant id, stable across the document. */
   id: string;
-  /** Master name, used for the manifest and the reference file name. */
+  /** Concrete master name, kept for backwards-compatible component markers. */
   name: string;
+  /** Component Set id, or the master id for a standalone component. */
+  familyId?: string;
+  /** Component Set name, or the master name for a standalone component. */
+  familyName?: string;
+  /** Variant axis values, e.g. `{ Size: 'Medium', State: 'Hover' }`. */
+  variantProperties?: Record<string, string>;
+  /** Instance component properties, including text/boolean/swap values. */
+  componentProperties?: Record<string, ComponentPropertyValue>;
+  /** Definitions declared by the Component Set or standalone Component. */
+  propertyDefinitions?: Record<string, ComponentPropertyDefinition>;
 }
 
 /**
@@ -358,6 +376,12 @@ export interface ConversionOptions {
    * switch can never change what a frame looks like.
    */
   componentDedup?: boolean;
+  /**
+   * Add component/family/variant data attributes to selection HTML. The plugin
+   * UI enables this by default because it is data-only; direct generator calls
+   * remain unchanged unless they pass `componentMarkers` explicitly.
+   */
+  componentMetadata?: boolean;
   /**
    * Emit `data-figma-id="<id>"` on every converted node, so a pixel diff can
    * name the layer it is looking at.

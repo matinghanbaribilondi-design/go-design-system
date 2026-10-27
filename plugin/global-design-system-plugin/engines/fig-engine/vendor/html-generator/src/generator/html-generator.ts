@@ -165,10 +165,35 @@ export interface HtmlGenerationOptions {
  * because Figma happily names two components "Button" and the id is the only
  * thing that stays unique across a file.
  */
-function componentMarkerAttrs(node: IRNode): string {
+export function componentMarkerAttrs(node: IRNode): string {
   const ref = node.componentRef;
   if (!ref) return '';
-  return ` data-component="${escapeHtml(ref.name)}" data-component-id="${escapeHtml(ref.id)}"`;
+  const attrs = [
+    `data-component="${escapeHtml(ref.name)}"`,
+    `data-component-id="${escapeHtml(ref.id)}"`,
+    ref.familyName ? `data-component-family="${escapeHtml(ref.familyName)}"` : '',
+    ref.familyId ? `data-component-family-id="${escapeHtml(ref.familyId)}"` : '',
+  ];
+
+  for (const [name, value] of Object.entries(ref.variantProperties ?? {})) {
+    attrs.push(`data-variant-${dataAttributeName(name)}="${escapeHtml(value)}"`);
+  }
+  for (const [name, value] of Object.entries(ref.componentProperties ?? {})) {
+    attrs.push(`data-component-prop-${dataAttributeName(name)}="${escapeHtml(String(value))}"`);
+  }
+
+  return ` ${attrs.filter(Boolean).join(' ')}`;
+}
+
+/** Converts a Figma property name into a stable, HTML-safe data attribute suffix. */
+function dataAttributeName(name: string): string {
+  const slug = name
+    .trim()
+    .replace(/([a-z])([A-Z])/g, '$1-$2')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+  return slug || 'value';
 }
 
 /**
@@ -374,7 +399,10 @@ export function generateFullHtmlDocument(
 ): string {
   const isRtl = hasRtlInTree(rootNode);
   const css = generateCss(rootNode, options, isRtl, variablesBlock);
-  const bodyHtml = generateHtml(rootNode, 1, false, { debugFigmaIds: options.debugFigmaIds });
+  const bodyHtml = generateHtml(rootNode, 1, false, {
+    debugFigmaIds: options.debugFigmaIds,
+    componentMarkers: options.componentMetadata === true,
+  });
 
   const rtlAttrs = isRtl ? ' lang="fa" dir="rtl"' : ' lang="en"';
   const fontLinks = isRtl

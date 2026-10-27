@@ -147,7 +147,7 @@ t('package: styles-only file still produces tokens.md; reference.md only when fr
   assert.match(f.find(x => x.path === 'components.md').content, /## Icons/); assert.ok(!f.some(x => x.path.startsWith('reference/')));
   M.refs = [{ id: '1:1', name: 'Home', page: 'P', w: 390, h: 844, nodes: 3, truncated: false, body: '<div data-name="Home" style="width:390px"></div>', links: [], fonts: {}, vars: [] }];
   f = gen(M, 'standard', [], []); const md = f.filter(x => x.path.endsWith('.md')); assert.ok(md.length <= 7); assert.ok(md.some(x => x.path === 'content.md') && md.some(x => x.path === 'ai-control.md'));
-  assert.ok(f.some(x => x.path === 'reference/index.html') && f.some(x => x.path === 'reference/home.html')); assert.ok(gen(M, 'minimal', [], []).some(x => x.path === 'content.md'));
+  assert.ok(f.some(x => x.path === 'reference/Home.html') && !f.some(x => x.path === 'reference/index.html'), 'one file per frame and no index'); assert.ok(gen(M, 'minimal', [], []).some(x => x.path === 'content.md'));
 });
 t('auto content: product name comes from file name as figma fact, not a user claim', () => {
   const C = buildContext({}, [], [], { name: 'Acme UI', description: 'Design system file with 3 component(s).' });
@@ -233,38 +233,62 @@ t('package: ai-control.md ships with the chosen level; design.md points to it', 
   assert.match(f.find(x => x.path === 'ai-control.md').content, /adherence_level: 6/); assert.match(f.find(x => x.path === 'design.md').content, /adherence_level/); assert.match(f.find(x => x.path === 'tokens.css').content, /ai-control\.md/);
   assert.match(gen(cssM(), 'standard', [], []).find(x => x.path === 'ai-control.md').content, /adherence_level: 3/);
 });
-t('prompt: adherence section tells the AI to read the file and gives a fallback summary', () => {
-  const p = buildPrompt({ adherence: 8 }, pdata); assert.match(p, /# CREATIVITY CONTROL/); assert.match(p, /Adherence level: 8 \/ 10/); assert.match(p, /ai-control\.md/); assert.match(p, /the file wins/); assert.match(p, /Exploratory/);
+t('ai control: the slider has exactly five positions 0-4, each a real level of ai-control.md', () => {
+  const s = require('../src/core.js').levelPicker();
+  assert.deepEqual(s.map(x => x.position), [0, 1, 2, 3, 4], 'five discrete positions');
+  assert.deepEqual(s.map(x => x.label), ['Strict', 'Conservative', 'Balanced', 'Creative', 'Open']);
+  assert.deepEqual(s.map(x => x.rule), [100, 80, 60, 40, 20], 'rule adherence as specified');
+  assert.deepEqual(s.map(x => x.creative), [0, 20, 40, 60, 80], 'creative freedom as specified');
+  assert.deepEqual(s.map(x => x.adherence), [0, 2, 5, 7, 10], 'each position picks a real level of the file');
+  assert.deepEqual(s.map(x => x.levelName), ['Strict', 'Faithful', 'Flexible', 'Creative', 'Open']);
+  s.forEach(x => {
+    assert.equal(x.rule + x.creative, 100);
+    assert.match(aiControlMd(x.adherence), new RegExp('adherence_level: ' + x.adherence));
+  });
+});
+t('prompt: adherence section tells the AI to read the file and gives a fallback summary', () => {  const p = buildPrompt({ adherence: 8 }, pdata); assert.match(p, /# CREATIVITY CONTROL/); assert.match(p, /Adherence level: 8 \/ 10/); assert.match(p, /ai-control\.md/); assert.match(p, /the file wins/); assert.match(p, /Exploratory/);
   assert.ok(!/CREATIVITY CONTROL/.test(buildPrompt({}, pdata)));
 });
 // ---- Reference HTML
-t('reference: standalone HTML per frame with viewer, only used token vars, themes and prototype links', () => {
+t('reference: one HTML file per frame, named after the frame, only used token vars and prototype links', () => {
   const M = cssM(); M.collections = [{ name: 'Theme', modes: ['Light', 'Dark'] }];
   M.refs = [{ id: '1:1', name: 'Home screen', page: 'App', w: 390, h: 844, nodes: 4, truncated: false, body: '<div data-name="Home" data-go="1:2" style="width:390px;background-color:var(--color-primary, #3F6FB5)"></div>', links: ['1:2'], fonts: { Inter: [400, 700] }, vars: ['--color-primary'], notes: [] },
     { id: '1:2', name: 'Settings', page: 'App', w: 390, h: 844, nodes: 2, truncated: false, body: '<div></div>', links: [], fonts: {}, vars: [] }];
   const f = referenceFiles(M, M.tokens), by = p => (f.find(x => x.path === p) || {}).content || '';
-  const home = by('reference/home-screen.html');
+  const home = by('reference/Home screen.html');
   assert.match(home, /<!doctype html>/); assert.match(home, /--color-primary: var\(--color-blue-600\)/); assert.match(home, /--color-blue-600: #3F6FB5/); assert.ok(!/--spacing-16/.test(home), 'only used variables are inlined');
-  assert.match(home, /\[data-theme="dark"\]/); assert.match(home, /<option value="dark">Dark<\/option>/); assert.match(home, /"1:2":"settings\.html"/); assert.match(home, /family=Inter:wght@400;700/);
-  assert.match(home, /class="frame" style="width:390px;height:844px"/, 'the HTML frame renders at its natural size');
-  assert.ok(!/Compare|data-v=|snapshots\/|thumbs\/|Fit|scaler/.test(home), 'HTML only: no Figma image and no zoom/compare controls');
-  const idx = by('reference/index.html');
-  assert.match(idx, /href="home-screen\.html"/); assert.match(idx, /Home screen/); assert.ok(!/thumbs\//.test(idx), 'index cards carry no image');
-  assert.ok(!f.some(x => /\.(png|jpe?g|webp)$/.test(x.path)), 'no Figma layer images are packaged');
+  assert.match(home, /\[data-theme="dark"\]/, 'modes travel as CSS blocks, without a switcher UI');
+  assert.match(home, /data-go="Settings\.html"/, 'a prototype link names the target frame file');
+  assert.match(home, /family=Inter:wght@400;700/);
+  assert.match(home, /<body>\n<div data-name="Home"[^>]*><\/div>\n<\/body>/, 'the body holds the frame and nothing else');
+  assert.ok(!/<div class="bar"|<select|<script|index\.html|snapshots\/|thumbs\/|Compare|Fit|scaler/.test(home), 'no viewer chrome, no index, no Figma images');
+  assert.deepEqual(f.map(x => x.path).sort(), ['reference/Home screen.html', 'reference/Settings.html'], 'the folder holds exactly one file per frame');
   assert.ok(!f.some(x => x.path === 'reference.md'));
 });
-t('reference: icon sheet is generated only when icon SVG exists', () => {
-  const M = cssM(); M.refs = []; M.icons = [{ name: 'Icon/Arrow', named: true, w: 24, h: 24, svg: '<svg viewBox="0 0 24 24"></svg>', evidence: [], usedIn: [] }];
-  assert.ok(referenceFiles(M, M.tokens).some(x => x.path === 'reference/icons.html')); M.icons[0].svg = ''; assert.ok(!referenceFiles(M, M.tokens).some(x => x.path === 'reference/icons.html'));
+t('reference: file names are the frame names, made filesystem-safe and unique', () => {
+  const M = cssM();
+  M.refs = [{ id: '1:1', name: 'Home/About', page: 'P', w: 10, h: 10, nodes: 1, truncated: false, body: '<i></i>', links: [], fonts: {}, vars: [] },
+    { id: '1:2', name: 'Home/About', page: 'P', w: 10, h: 10, nodes: 1, truncated: false, body: '<i></i>', links: [], fonts: {}, vars: [] },
+    { id: '1:3', name: '  صفحهٔ اصلی  ', page: 'P', w: 10, h: 10, nodes: 1, truncated: false, body: '<i></i>', links: [], fonts: {}, vars: [] }];
+  assert.deepEqual(referenceFiles(M, M.tokens).map(x => x.path), ['reference/Home About.html', 'reference/Home About (2).html', 'reference/صفحهٔ اصلی.html']);
+});
+t('reference: the folder carries frames only — icons stay in components.md and icons.json', () => {
+  const M = cssM(); M.refs = [{ id: '1:1', name: 'Home', page: 'P', w: 10, h: 10, nodes: 1, truncated: false, body: '<i></i>', links: [], fonts: {}, vars: [] }];
+  M.icons = [{ name: 'Icon/Arrow', named: true, w: 24, h: 24, svg: '<svg viewBox="0 0 24 24"></svg>', evidence: [], usedIn: [] }];
+  assert.deepEqual(referenceFiles(M, M.tokens).map(x => x.path), ['reference/Home.html']);
 });
 
-t('reference: custom fonts get fonts.css and are kept out of the Google Fonts link; images become shared files', () => {
+t('reference: custom fonts are inlined in the frame file, kept out of the Google link; images become shared files', () => {
   const M = cssM(); const big = 'A'.repeat(3000);
   M.refs = [{ id: '1:1', name: 'A', page: 'P', w: 100, h: 100, nodes: 1, truncated: false, body: '<img src="assets/x.png">', css: '', links: [], fonts: { 'Pinar-VF-FD': [400, 700], Inter: [400] }, vars: [], files: [{ path: 'assets/x.png', base64: big }], rtl: true },
     { id: '1:2', name: 'B', page: 'P', w: 100, h: 100, nodes: 1, truncated: false, body: '<img src="assets/x.png">', css: '', links: [], fonts: { Inter: [400] }, vars: [], files: [{ path: 'assets/x.png', base64: big }] }];
-  const f = referenceFiles(M, M.tokens), by = p => (f.find(x => x.path === p) || {}).content || '', a = by('reference/a.html');
-  assert.match(by('reference/fonts.css'), /font-family: "Pinar-VF-FD"; src: local\("Pinar-VF-FD"\)/); assert.ok(!/family=Pinar/.test(a), 'custom font never goes into the Google link'); assert.match(a, /family=Inter:wght@400/); assert.match(a, /href="fonts\.css"/); assert.match(a, /<html lang="en" dir="rtl">/);
-  assert.equal(f.filter(x => x.path === 'reference/assets/x.png').length, 1, 'identical image stored once'); assert.match(by('reference/index.html'), /Custom fonts:<\/b> Pinar-VF-FD/);
+  const f = referenceFiles(M, M.tokens), by = p => (f.find(x => x.path === p) || {}).content || '', a = by('reference/A.html');
+  assert.match(a, /font-family: "Pinar-VF-FD"; src: local\("Pinar-VF-FD"\)/, 'the @font-face rule is inside the frame file');
+  assert.ok(!f.some(x => x.path === 'reference/fonts.css'), 'no separate stylesheet');
+  assert.ok(!/family=Pinar/.test(a), 'custom font never goes into the Google link'); assert.match(a, /family=Inter:wght@400/); assert.match(a, /<html lang="en" dir="rtl">/);
+  assert.match(a, /drop "Pinar-VF-FD\.woff2" into a fonts\/ folder/);
+  assert.ok(!by('reference/B.html').includes('Pinar-VF-FD'), 'a frame without the custom font does not carry it');
+  assert.equal(f.filter(x => x.path === 'reference/assets/x.png').length, 1, 'identical image stored once');
   const M2 = cssM(); M2.refEmbed = true; M2.refs = M.refs;
   const g = referenceFiles(M2, M2.tokens); assert.ok(!g.some(x => x.path === 'reference/assets/x.png'), 'embedded images travel inside the HTML');
 });

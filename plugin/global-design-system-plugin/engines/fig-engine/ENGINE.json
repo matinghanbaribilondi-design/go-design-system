@@ -7,17 +7,17 @@
     "figEngine": {
       "path": "C:\\Users\\matin.ghanbari\\Desktop\\git hub\\figma-ai\\fig-engine",
       "version": "1.0.0",
-      "commit": "bfa44d1"
+      "commit": "4b02080"
     },
     "htmlGenerator": {
       "path": "C:\\Users\\matin.ghanbari\\Desktop\\git hub\\figma-ai\\html-generator",
       "version": "1.0.0",
-      "commit": "bfa44d1"
+      "commit": "4b02080"
     }
   },
-  "syncedAt": "2026-10-27T06:45:01.299Z",
-  "filesHash": "b8a275eb0acc",
-  "files": 39,
+  "syncedAt": "2026-10-27T14:05:55.256Z",
+  "filesHash": "63c4c172135e",
+  "files": 40,
   "entries": [
     "html-generator/src/plugin/converter/index.ts",
     "html-generator/src/plugin/converter/utils.ts",

@@ -3914,8 +3914,25 @@ var FigEngine = (() => {
     const label = ((_b = (_a = pickPlaceholder(hits)) == null ? void 0 : _a.node.text) != null ? _b : "").trim();
     const names = componentAwareNames(node);
     if (node.type === "INSTANCE") {
-      const variants = node.variantProperties;
-      if (variants) names.push(...Object.values(variants).map((value2) => value2.toLowerCase()));
+      const instance = node;
+      let addedPropertyValue = false;
+      try {
+        const properties = instance.componentProperties;
+        for (const property of Object.values(properties != null ? properties : {})) {
+          if (typeof property.value === "string") {
+            names.push(property.value.toLowerCase());
+            addedPropertyValue = true;
+          }
+        }
+      } catch {
+      }
+      if (!addedPropertyValue) {
+        try {
+          const variants = instance.variantProperties;
+          if (variants) names.push(...Object.values(variants).map((value2) => value2.toLowerCase()));
+        } catch {
+        }
+      }
     }
     const name = kind === "radio" ? radioGroupName(node, "radio") : fieldName(irNode.className);
     const value = choiceValue(irNode.className, label);
@@ -4402,6 +4419,109 @@ var FigEngine = (() => {
     }
   }
 
+  // engines/fig-engine/vendor/html-generator/src/plugin/converter/component-metadata.ts
+  function read(get) {
+    try {
+      return get();
+    } catch {
+      return void 0;
+    }
+  }
+  function isPropertyValue(value) {
+    return typeof value === "string" || typeof value === "boolean";
+  }
+  function recordOf(values) {
+    return values && typeof values === "object" && !Array.isArray(values) ? values : void 0;
+  }
+  function stringRecord(values) {
+    const record = recordOf(values);
+    if (!record) return void 0;
+    const output = {};
+    for (const [key, value] of Object.entries(record)) {
+      if (typeof value === "string" && value.length > 0) output[key] = value;
+    }
+    return Object.keys(output).length > 0 ? output : void 0;
+  }
+  function componentPropertyRecord(values) {
+    var _a;
+    const record = recordOf(values);
+    if (!record) return void 0;
+    const output = {};
+    for (const [key, raw] of Object.entries(record)) {
+      const value = (_a = recordOf(raw)) == null ? void 0 : _a.value;
+      if (isPropertyValue(value)) output[key] = value;
+    }
+    return Object.keys(output).length > 0 ? output : void 0;
+  }
+  function propertyDefinitions(values) {
+    const record = recordOf(values);
+    if (!record) return void 0;
+    const output = {};
+    for (const [key, raw] of Object.entries(record)) {
+      const definition = recordOf(raw);
+      if (!definition || typeof definition.type !== "string") continue;
+      const normalized = { type: definition.type };
+      if (isPropertyValue(definition.defaultValue)) normalized.defaultValue = definition.defaultValue;
+      if (Array.isArray(definition.variantOptions)) {
+        const values2 = definition.variantOptions.filter((value) => typeof value === "string");
+        if (values2.length > 0) normalized.variantOptions = values2;
+      }
+      output[key] = normalized;
+    }
+    return Object.keys(output).length > 0 ? output : void 0;
+  }
+  function legacyVariantDefinitions(componentSet) {
+    var _a;
+    if (!componentSet) return void 0;
+    const groups = recordOf(read(() => componentSet.variantGroupProperties));
+    if (!groups) return void 0;
+    const output = {};
+    for (const [name, raw] of Object.entries(groups)) {
+      const values = (_a = recordOf(raw)) == null ? void 0 : _a.values;
+      if (!Array.isArray(values)) continue;
+      const variantOptions = values.filter((value) => typeof value === "string");
+      if (variantOptions.length > 0) {
+        output[name] = { type: "VARIANT", variantOptions };
+      }
+    }
+    return Object.keys(output).length > 0 ? output : void 0;
+  }
+  function mergeStrings(first, second) {
+    const merged = { ...first != null ? first : {}, ...second != null ? second : {} };
+    return Object.keys(merged).length > 0 ? merged : void 0;
+  }
+  function readComponentMetadata(instance, master) {
+    var _a, _b, _c;
+    const parent = read(() => master.parent);
+    const componentSet = (parent == null ? void 0 : parent.type) === "COMPONENT_SET" ? parent : void 0;
+    const family = componentSet != null ? componentSet : master;
+    const legacyInstanceVariants = stringRecord(read(() => instance.variantProperties));
+    const modernProperties = read(() => instance.componentProperties);
+    const modernVariantProperties = {};
+    if (modernProperties && typeof modernProperties === "object") {
+      for (const [key, raw] of Object.entries(modernProperties)) {
+        const value = (_a = recordOf(raw)) == null ? void 0 : _a.value;
+        const type = (_b = recordOf(raw)) == null ? void 0 : _b.type;
+        if (type === "VARIANT" && typeof value === "string") modernVariantProperties[key] = value;
+      }
+    }
+    const componentProperties = componentPropertyRecord(modernProperties);
+    const variantProperties = mergeStrings(legacyInstanceVariants, stringRecord(modernVariantProperties));
+    const definitions = (_c = propertyDefinitions(
+      read(() => family.componentPropertyDefinitions)
+    )) != null ? _c : legacyVariantDefinitions(componentSet);
+    const result = {
+      id: master.id,
+      name: master.name,
+      familyId: family.id,
+      familyName: family.name
+    };
+    if (variantProperties) result.variantProperties = variantProperties;
+    if (componentProperties) result.componentProperties = componentProperties;
+    if (definitions) result.propertyDefinitions = definitions;
+    return result;
+  }
+
   // engines/fig-engine/vendor/html-generator/src/plugin/converter/index.ts
   async function convertNodeToIR(node, parent, options, tokenRegistry, parentClassName, existingNamesSet = /* @__PURE__ */ new Set(), containerWidthPx) {
     const ir = await convertNodeBody(
@@ -4422,7 +4542,7 @@ var FigEngine = (() => {
     if (node.type === "INSTANCE") {
       const master = node._resolvedMainComponent;
       if (master && master.id) {
-        ir.componentRef = { id: master.id, name: master.name };
+        ir.componentRef = readComponentMetadata(node, master);
       }
     }
     return ir;
@@ -5288,9 +5408,26 @@ a {
     }).join("\n");
   }
   function componentMarkerAttrs(node) {
+    var _a, _b;
     const ref = node.componentRef;
     if (!ref) return "";
-    return ` data-component="${escapeHtml(ref.name)}" data-component-id="${escapeHtml(ref.id)}"`;
+    const attrs = [
+      `data-component="${escapeHtml(ref.name)}"`,
+      `data-component-id="${escapeHtml(ref.id)}"`,
+      ref.familyName ? `data-component-family="${escapeHtml(ref.familyName)}"` : "",
+      ref.familyId ? `data-component-family-id="${escapeHtml(ref.familyId)}"` : ""
+    ];
+    for (const [name, value] of Object.entries((_a = ref.variantProperties) != null ? _a : {})) {
+      attrs.push(`data-variant-${dataAttributeName(name)}="${escapeHtml(value)}"`);
+    }
+    for (const [name, value] of Object.entries((_b = ref.componentProperties) != null ? _b : {})) {
+      attrs.push(`data-component-prop-${dataAttributeName(name)}="${escapeHtml(String(value))}"`);
+    }
+    return ` ${attrs.filter(Boolean).join(" ")}`;
+  }
+  function dataAttributeName(name) {
+    const slug = name.trim().replace(/([a-z])([A-Z])/g, "$1-$2").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase();
+    return slug || "value";
   }
   function figmaIdAttr(node, options) {
     if (!options.debugFigmaIds || !node.id) return "";
@@ -5418,17 +5555,17 @@ ${indent}</${tag2}>`;
       figEngine: {
         path: "C:\\Users\\matin.ghanbari\\Desktop\\git hub\\figma-ai\\fig-engine",
         version: "1.0.0",
-        commit: "bfa44d1"
+        commit: "4b02080"
       },
       htmlGenerator: {
         path: "C:\\Users\\matin.ghanbari\\Desktop\\git hub\\figma-ai\\html-generator",
         version: "1.0.0",
-        commit: "bfa44d1"
+        commit: "4b02080"
       }
     },
-    syncedAt: "2026-10-27T06:45:01.299Z",
-    filesHash: "b8a275eb0acc",
-    files: 39,
+    syncedAt: "2026-10-27T14:05:55.256Z",
+    filesHash: "63c4c172135e",
+    files: 40,
     entries: [
       "html-generator/src/plugin/converter/index.ts",
       "html-generator/src/plugin/converter/utils.ts",
@@ -5443,7 +5580,45 @@ ${indent}</${tag2}>`;
   var contract = 1;
   var id = ENGINE_default.id;
   var version = ENGINE_default.version;
-  var capabilities = ["frame", "component"];
+  var capabilities = ["frame", "component", "markers", "metadata"];
+  function readOpt(get) {
+    try {
+      return get();
+    } catch {
+      return void 0;
+    }
+  }
+  function componentMeta(node) {
+    const parent = readOpt(() => node.parent);
+    const family = parent && parent.type === "COMPONENT_SET" ? parent : node;
+    const meta = { id: node.id, name: node.name, familyId: family.id, familyName: family.name };
+    const variants = readOpt(() => node.variantProperties);
+    if (variants && Object.keys(variants).length) meta.variantProperties = variants;
+    const defs = readOpt(() => family.componentPropertyDefinitions);
+    const out = {};
+    Object.keys(defs || {}).forEach((k) => {
+      const d = defs[k];
+      if (!d || typeof d.type !== "string") return;
+      const one = { type: d.type };
+      if (typeof d.defaultValue === "string" || typeof d.defaultValue === "boolean") one.defaultValue = d.defaultValue;
+      if (Array.isArray(d.variantOptions) && d.variantOptions.length) one.variantOptions = d.variantOptions.filter((x) => typeof x === "string");
+      out[k] = one;
+    });
+    if (Object.keys(out).length) meta.propertyDefinitions = out;
+    return meta;
+  }
+  function usedComponents(root) {
+    const byId = /* @__PURE__ */ new Map();
+    const walk = (n) => {
+      const ref = n.componentRef;
+      if (ref && !byId.has(ref.id)) {
+        byId.set(ref.id, { id: ref.id, name: ref.name, familyId: ref.familyId || ref.id, familyName: ref.familyName || ref.name, variantProperties: ref.variantProperties, propertyDefinitions: ref.propertyDefinitions });
+      }
+      n.children.forEach(walk);
+    };
+    walk(root);
+    return Array.from(byId.values());
+  }
   function hexKey(hex) {
     const h = hex.replace("#", "");
     if (h.length !== 6 && h.length !== 8) return null;
@@ -5583,7 +5758,7 @@ ${indent}</${tag2}>`;
     const ir = await convertNodeToIR(node, null, options, registry);
     if (!ir) throw new Error("The frame is hidden or cannot be exported.");
     const rtl = hasRtlInTree(ir);
-    let body = generateHtml(ir, 0);
+    let body = generateHtml(ir, 0, false, { componentMarkers: true });
     let css = renderCss(ir, options, rtl);
     const fileMap = /* @__PURE__ */ new Map();
     if (!o.embedImages) {
@@ -5613,6 +5788,7 @@ ${indent}</${tag2}>`;
       rtl,
       nodes: count.nodes,
       assets: count.assets,
+      components: usedComponents(ir),
       files: Array.from(fileMap.entries()).map(([path, base64]) => ({ path, base64 })),
       notes: []
     };
@@ -5652,6 +5828,7 @@ ${indent}</${tag2}>`;
       css,
       vars: varsOf(css),
       nodes: count.nodes,
+      metadata: componentMeta(root),
       files: Array.from(fileMap.entries()).map(([path, base64]) => ({ path, base64 })),
       notes: []
     };
