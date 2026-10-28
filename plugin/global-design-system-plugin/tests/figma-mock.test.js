@@ -7,7 +7,7 @@ const mkVariant = (name, w, h, extra) => Object.assign({ id: 'v:' + name, type: 
   boundVariables: { height: { type: 'VARIABLE_ALIAS', id: 'var:size' }, paddingLeft: { type: 'VARIABLE_ALIAS', id: 'var:space' } }, fills: [{ type: 'SOLID', color: { r: 0.247, g: 0.435, b: 0.71 }, opacity: 1, boundVariables: { color: { type: 'VARIABLE_ALIAS', id: 'var:primary' } } }], strokes: [], textStyleId: '' }, extra || {});
 const label = { id: 't1', type: 'TEXT', name: 'Label', fontSize: 14, textStyleId: 'S:text2', boundVariables: {}, characters: 'Go' };
 const small = mkVariant('Size=Small', 80, 32, { variantProperties: { Size: 'Small' } }), med = mkVariant('Size=Medium', 96, 40, { findAll: () => [label], textStyleId: '', variantProperties: { Size: 'Medium' } });
-const set = { id: 'set:1', type: 'COMPONENT_SET', name: 'Button', description: '', width: 96, height: 40, children: [med, small], componentPropertyDefinitions: { 'Size': { type: 'VARIANT', defaultValue: 'Medium', variantOptions: ['Small', 'Medium'] } }, findAll: () => [], boundVariables: {} };
+const set = { id: 'set:1', type: 'COMPONENT_SET', name: 'Button', description: '', width: 96, height: 40, children: [small, med], componentPropertyDefinitions: { 'Size': { type: 'VARIANT', defaultValue: 'Medium', variantOptions: ['Small', 'Medium'] } }, findAll: () => [], boundVariables: {} };
 small.parent = set; med.parent = set;
 const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
 // A PNG whose size grows with the requested scale, so card and full captures differ.
@@ -41,9 +41,12 @@ manyFrames.forEach(f => { f.parent = deepSec; });
 deepSec.children = [checkout].concat(manyFrames);
 const page = { id: 'p1', type: 'PAGE', name: 'Design System', children: [frame, frame2, set, sec], loadAsync: async () => {}, parent: null, findAllWithCriteria: ({ types }) => [set].filter(n => types.includes(n.type)) };
 set.parent = page; frame.parent = page; frame2.parent = page; sec.parent = page; deepSec.parent = sec; pricing.parent = sec; checkout.parent = deepSec; nested.parent = frame;
+const badge = mkVariant('Badge', 64, 28);
+const otherPage = { id: 'p2', type: 'PAGE', name: 'Archive', children: [badge], loadAsync: async () => {}, parent: null, findAllWithCriteria: ({ types }) => [badge].filter(n => types.includes(n.type)) };
+badge.parent = otherPage;
 const defaults = n => { if (n.visible === undefined) n.visible = true; if (n.rotation === undefined) n.rotation = 0; if (n.opacity === undefined) n.opacity = 1; if (n.x === undefined) n.x = 0; if (n.y === undefined) n.y = 0; (n.children || []).forEach(defaults); };
-[frame, frame2, set, sec].forEach(defaults);
-const nodes = { p1: page, 'set:1': set, 'fr:1': frame, 'fr:2': frame2, 'fr:3': checkout, 'fr:4': pricing, 'fr:9': nested };
+[frame, frame2, set, sec, badge].forEach(defaults);
+const nodes = { p1: page, p2: otherPage, 'set:1': set, 'v:Badge': badge, 'fr:1': frame, 'fr:2': frame2, 'fr:3': checkout, 'fr:4': pricing, 'fr:9': nested };
 const vars = [{ id: 'var:primary', name: 'Color/Primary', resolvedType: 'COLOR', variableCollectionId: 'c1', valuesByMode: { m1: { r: 0.247, g: 0.435, b: 0.71 } } },
   { id: 'var:size', name: 'Size/Medium', resolvedType: 'FLOAT', variableCollectionId: 'c1', valuesByMode: { m1: 40 } }, { id: 'var:space', name: 'Spacing/16', resolvedType: 'FLOAT', variableCollectionId: 'c1', valuesByMode: { m1: 16 } }];
 const styles = {
@@ -52,7 +55,7 @@ const styles = {
   effect: [{ id: 'S:eff1', type: 'EFFECT', name: 'Shadow/1', effects: [{ type: 'DROP_SHADOW', offset: { x: 0, y: 4 }, radius: 8, spread: 0, color: { r: 0, g: 0, b: 0, a: 0.25 } }] }] };
 const libStyle = { id: 'S:text2', type: 'TEXT', remote: true, name: 'Lib/Body', fontName: { family: 'Inter', style: 'Regular' }, fontSize: 14, lineHeight: { unit: 'AUTO' }, letterSpacing: { unit: 'PIXELS', value: 0 } };
 global.__html__ = '';
-global.figma = { base64Encode: b => Buffer.from(b).toString('base64'), getImageByHash: () => null, showUI() {}, root: { name: 'Acme', children: [page] }, loadAllPagesAsync: async () => {}, notify() {}, closePlugin() {},
+global.figma = { base64Encode: b => Buffer.from(b).toString('base64'), getImageByHash: () => null, showUI() {}, root: { name: 'Acme', children: [page, otherPage] }, loadAllPagesAsync: async () => {}, notify() {}, closePlugin() {},
   ui: { postMessage: m => out.push(m), resize: (w, h) => sizes.push([w, h]) }, clientStorage: { getAsync: async k => store[k], setAsync: async (k, v) => { store[k] = v; }, deleteAsync: async k => { delete store[k]; } },
   variables: { getLocalVariablesAsync: async () => vars, getLocalVariableCollectionsAsync: async () => [{ id: 'c1', name: 'Theme', modes: [{ modeId: 'm1', name: 'Light' }], defaultModeId: 'm1' }] },
   getLocalTextStylesAsync: async () => styles.text, getLocalPaintStylesAsync: async () => styles.paint, getLocalEffectStylesAsync: async () => styles.effect,
@@ -63,8 +66,8 @@ const get = (arr, t) => (arr.find(m => m.type === t) || {}).data;
 const collectFiles = msgs => { const files = [], parts = {}; msgs.forEach(m => { if (m.type === 'file') files.push({ path: m.data.path, content: m.data.content, binary: m.data.binary }); if (m.type === 'file-chunk') { const o = parts[m.data.path] = parts[m.data.path] || { p: [], n: m.data.n, b: m.data.binary }; o.p[m.data.i] = m.data.part; } }); Object.keys(parts).forEach(k => files.push({ path: k, content: parts[k].p.join(''), binary: parts[k].b })); return files; };
 (async () => {
   const d = get(await send({ type: 'discover' }), 'discover');
-  assert.equal(d.counts.styles, 3, 'discover counts local styles'); assert.deepEqual(d.styleList.map(x => x.kind).sort(), ['effect', 'paint', 'text']); assert.equal(d.counts.components, 1);
-  const sel = { pageIds: ['p1'], collectionIds: ['c1'], categories: null, styles: true, icons: true, iconSvg: true, componentIds: ['set:1'], refFrameIds: ['fr:1', 'fr:2', 'fr:3'], adherence: 7, depPolicy: 'auto_include', sections: {}, iconPack: 'Lucide Icons' };
+  assert.equal(d.counts.styles, 3, 'discover counts local styles'); assert.deepEqual(d.styleList.map(x => x.kind).sort(), ['effect', 'paint', 'text']); assert.equal(d.counts.components, 2, 'components are discovered on every page');
+  const sel = { pageIds: ['p1'], collectionIds: ['c1'], categories: null, styles: true, icons: true, iconSvg: true, componentIds: [], componentHtml: false, refFrameIds: ['fr:1', 'fr:2', 'fr:3'], adherence: 7, depPolicy: 'auto_include', sections: {}, iconPack: 'Lucide Icons' };
   const dl = await send({ type: 'discover' });
   const disc = get(dl, 'discover');
   assert.deepEqual(disc.steps.map(s => s.position + ':' + s.label), ['0:Strict', '1:Conservative', '2:Balanced', '3:Creative', '4:Open'], 'the slider gets five discrete positions');
@@ -104,12 +107,32 @@ const collectFiles = msgs => { const files = [], parts = {}; msgs.forEach(m => {
   assert.deepEqual(btnRow.metadata.variantProperties, { Size: 'Medium' }, 'the exported variant is named');
   assert.deepEqual(btnRow.metadata.propertyDefinitions.Size.variantOptions, ['Small', 'Medium'], 'declared variant options');
   assert.deepEqual(btnRow.usedIn, ['Home.html'], 'the reference frame that uses this component is recorded');
+  const badgeRow = idx.components.find(c => c.name === 'Badge');
+  assert.ok(badgeRow, 'a component on an unselected page is still indexed');
+  assert.match(by(badgeRow.file), /class="badge"/, 'its HTML is exported by fig-engine even when legacy component selections are empty and disabled');
+  const smallRow = idx.components.find(c => c.name === 'Button / Size=Small'); assert.ok(smallRow, 'every component-set variant has an index row'); assert.equal(smallRow.variantOf, 'set:1'); assert.equal(smallRow.isDefault, false); assert.equal(smallRow.width, 80); assert.ok(by(smallRow.file).includes('class="' + smallRow.className + '"'), 'the non-default variant is rendered by fig-engine');
+  assert.equal(btnRow.isDefault, true); assert.deepEqual(idx.coverage, { sourceFamilies: 2, sourceVariants: 3, exportedFamilies: 2, exportedVariants: 3, failedVariants: 0 });
+  assert.equal(idx.components.length, 3, 'every main component and every component-set variant on every page is exported');
+  const buttonGraph = idx.graph.families.find(f => f.id === 'set:1');
+  assert.equal(buttonGraph.variants.length, 2, 'the graph retains every variant and its properties'); assert.deepEqual(buttonGraph.variants.map(v => v.properties.Size), ['Medium', 'Small']);
+  assert.deepEqual(buttonGraph.tokens.map(t => t.figmaId).sort(), ['var:primary', 'var:size', 'var:space'], 'component bindings link to stable token IDs');
+  assert.equal(buttonGraph.instances.length, 1); assert.equal(buttonGraph.instances[0].id, 'i1'); assert.equal(buttonGraph.instances[0].file, 'reference/Home.html'); assert.equal(buttonGraph.instances[0].evidence, 'figma-instance');
+  assert.equal(buttonGraph.extraction.status, 'extracted'); assert.equal(idx.graph.stats.families, 2); assert.equal(idx.graph.stats.instances, 1);
+  assert.equal(idx.patterns.stats.references, 3); assert.equal(idx.patterns.stats.patterns, 3, 'references are grouped before pattern counts are reported');
+  const homePattern = idx.patterns.patterns.find(p => p.occurrences.some(o => o.referenceId === 'fr:1')), homeEvidence = homePattern.occurrences[0];
+  assert.equal(homePattern.status, 'Observed'); assert.equal(homeEvidence.evidenceLevel, 'figma-ir');
+  assert.equal(homeEvidence.file, 'reference/Home.html'); assert.ok(homeEvidence.nodes.some(n => n.id === 'i1'), 'pattern evidence retains real source node IDs from the engine IR');
+  assert.ok(!JSON.stringify(homePattern.structure).includes('home__'), 'generated classes are not part of the normalized pattern');
   assert.ok(!/<div class="bar"|<select|<script|class="stage"|class="pane"/.test(home), 'the file is the frame alone: no viewer chrome, no script');
   assert.ok(!/snapshots\/|thumbs\/|Compare|data-v=/.test(home), 'no Figma image and no compare controls');
   assert.ok(!gen.some(f => /\.(png|jpe?g|webp)$/i.test(f.path)), 'the package contains no Figma layer images');
   assert.match(by('reference/Checkout.html'), /class="checkout"/, 'a frame found inside nested sections is exported too');
   assert.match(by('ai-control.md'), /adherence_level: 7/, 'the level chosen in the Source step is the one shipped');
   assert.ok(get(await send({ type: 'generate', mode: 'standard', rejected: [], rejInf: [] }), 'files-done'), 'a generate without an explicit level keeps the chosen one');
+  const fullFiles = collectFiles(await send({ type: 'generate', mode: 'full', rejected: [], rejInf: [] })), tokenMap = JSON.parse(fullFiles.find(f => f.path === 'metadata/token-map.json').content), manifest = JSON.parse(fullFiles.find(f => f.path === 'manifest.json').content);
+  assert.ok(tokenMap.tokens.every(t => t.collectionId === 'c1' && t.defaultMode === 'Light'), 'Figma collection IDs and default modes survive extraction');
+  assert.equal(tokenMap.collections[0].modes[0].id, 'm1', 'mode IDs are stored per mode'); assert.deepEqual(manifest.stats.tokens, tokenMap.stats, 'manifest and token map share token accounting');
+  assert.deepEqual(manifest.stats.patterns, idx.patterns.stats, 'manifest and pattern index share post-grouping counts');
   assert.equal(get(await send({ type: 'discover' }), 'discover').engine.id, 'fig-engine');
   assert.ok(get(await send({ type: 'discover' }), 'discover').engine.capabilities.includes('component'), 'engine exposes component export');
   const th = get(await send({ type: 'frame-thumb', id: 'fr:1' }), 'frame-thumb');
@@ -126,5 +149,7 @@ const collectFiles = msgs => { const files = [], parts = {}; msgs.forEach(m => {
   await send({ type: 'resize', w: 1000, h: 800, commit: true }); assert.deepEqual(store['ui-size'], { w: 1000, h: 800 }, 'a committed drag is remembered for the next run');
   const fb = get(await send({ type: 'analyze', sel: Object.assign({}, sel, { refEngine: 'builtin' }), ctx: { mode: 'skip' }, dd: {} }), 'analysis'); assert.equal(fb.summary.refs, 3, 'built-in fallback engine still works');
   const gen2 = collectFiles(await send({ type: 'generate', mode: 'standard', rejected: [], rejInf: [] })); assert.match(gen2.find(f => f.path === 'reference/Home.html').content, /data-name="Home"/, 'fallback renderer output');
+  delete nodes['v:Badge']; await send({ type: 'analyze', sel, ctx: { mode: 'skip' }, dd: {} }); const partialFiles = collectFiles(await send({ type: 'generate', mode: 'standard', rejected: [], rejInf: [] })), partial = JSON.parse(partialFiles.find(f => f.path === 'components/index.json').content);
+  assert.equal(partial.coverage.sourceVariants, 3); assert.equal(partial.coverage.exportedVariants, 2); assert.equal(partial.coverage.failedVariants, 1); assert.match(partialFiles.find(f => f.path === 'validation.md').content, /COMPONENT_HTML_EXPORT_FAILED/, 'partial component extraction is an explicit validation error'); nodes['v:Badge'] = badge;
   console.log('files:', gen.map(f => f.path).join(', ')); console.log('figma-mock tests passed');
 })().catch(e => { console.error(e); process.exit(1); });

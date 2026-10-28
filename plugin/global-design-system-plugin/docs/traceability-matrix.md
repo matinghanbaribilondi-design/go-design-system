@@ -114,8 +114,8 @@
 | Requirement | Implementation | Test | Status |
 |---|---|---|---|
 | Each References-step card shows a real preview of the frame | `frameThumb` in core (Figma `exportAsync` PNG, cached, size-capped), lazy queue + IntersectionObserver in ui.html | figma-mock.test.js ("reference card preview…", cache, missing frame), preview-harness.html browser run | implemented |
-| Reference output is HTML only: no Figma layer image, no snapshots/thumbs in the package | `snap()` deleted; `frameRef`/`refFrame`/`referenceFiles` no longer carry snapshot/thumb; viewer bar has only back link, title and theme | core.test.js "no Figma layer images are packaged", figma-mock.test.js | implemented |
-| No Fit / 100% or compare controls; the frame renders at its natural size | new `VIEWER_CSS` + `refDoc` (`.stage > .pane > .frame` at `w×h` px) | core.test.js ("HTML only: no Figma image and no zoom/compare controls") | implemented |
+| Reference output is HTML only: no Figma layer image, no snapshots/thumbs in the package | `snap()` deleted; `referenceFiles` emits only the selected frames and referenced assets | core.test.js "no Figma layer images are packaged", figma-mock.test.js | implemented |
+| No Fit / 100% or compare controls in exported reference HTML | bare `refDoc`; `VIEWER_CSS`, viewer scripts and wrappers deleted | core.test.js, figma-mock.test.js (body contains only the frame root) | implemented |
 | Step connector line stops at the label, never under or over it | `.steps` flex layout with explicit `.step-line` separators; `setStep` marks the passed ones | preview-harness.html browser run (line boxes sit strictly between label and next number) | implemented |
 | Panel can be resized in Figma and remembers its size | `.grip` drag in ui.html sends `resize` (+`commit`), `uiSize` clamp and `figma.ui.resize`, `clientStorage['ui-size']` restored at start | figma-mock.test.js (clamp + committed size), browser drag test with 3-column wide layout | implemented |
 | Engine re-synced to fig-engine/html-generator HEAD (rotated rules, RTL columns, blurred glass, real form controls already in the bundle) | `node scripts/sync-fig-engine.mjs` → 39 files, hash `b8a275eb0acc`, commit `ea0c8a6` in ENGINE.json | sync dry report + figma-mock.test.js renders through the bundle | superseded by the metadata sync below |
@@ -128,3 +128,45 @@
 | Discrete AI creativity slider: five positions 0–4 (Strict / Conservative / Balanced / Creative / Open) with rule-adherence and creative-freedom percentages, dark track filling to the selected marker (passed dots go black too), summary pill, keyboard support | `CREATIVITY_STEPS` + `levelPicker()` in core (positions map to ai-control.md levels 0/2/5/7/10) shipped in the `discover` payload; `#adhTrack` in the Source step (pointer drag with snap, click, Arrow/Home/End, `role="slider"` + `aria-valuetext`), `#adhSum` pill; `sel.adherence` → `MODEL.adherence` → `ai-control.md` | core.test.js (five positions, exact labels and percentages, each mapping a real level), figma-mock.test.js (`steps` in discover, `adherence_level: 7` shipped), browser checks (default 0 → 100/0; click 1 → fill 25% and 80/20; keys 2→4→3→0; percentages never collide at 520px or 920px) | implemented |
 | All main frames are found: page level and the first frame level inside sections, without a cap | `listFrames` no longer slices at 80; `analyze` no longer caps refs at 100; `discover` counts frames + sections only | figma-mock.test.js (94 frames listed incl. `mf:89` two sections deep, `screens: 94`) | implemented |
 | Full view of any reference frame from its card | `frameThumb` `size: 'full'` (≤1500×4000, never upscaled, byte-capped with step-down, cached per size); `⤢ Full view` + `#viewer` overlay in ui.html with Fit/100%, two-axis scroll, Esc/backdrop close and focus return | figma-mock.test.js (full vs card sizes differ, dims reported, errors routed), browser check (open, 1440px at 100%, scroll, Esc) | implemented |
+| Every main component and component set on every page exports automatically as HTML | all-page scan in `buildDraft`, independent of `pageIds` and legacy component selection; uncapped `FigEngine.exportComponent` loop with progress and yielding; component toggle removed from Source | figma-mock.test.js (Badge lives only on unselected p2; `componentIds: []` + `componentHtml: false` cannot disable it; both HTML files and index rows asserted) | implemented |
+| Select all references | `#refsAll` selects every id in `S.frames`, then refreshes cards, count and footer | preview-harness.html browser run (None → 0; Select all → 4/4; no console errors) | implemented |
+
+## v2.0 phase zero: deterministic tokens and package validation
+
+| Requirement | Implementation | Test | Status |
+|---|---|---|---|
+| CSS names are independent of token traversal order; every collision member gets a stable ID-based suffix | `nameHash`, grouped and sorted `cssNameMap`; ambiguous `byName` entries omitted | core.test.js collision test plus reverse, rotation and sorted permutations | implemented |
+| Aliases and component bindings resolve by Figma ID before any legacy name fallback | `resolve().aliasId` / `ids`, `componentSpec().boundId`, ID-first `bindingCss` and `tokensCss` | core.test.js multi-level, broken and circular alias fixture; explicit-binding package test | implemented |
+| Equal color values never select a semantic role by guess | `valueMatchIssues`; ambiguous values excluded by `refTokenMap` and `nearestColor` | core.test.js equal-value ambiguity test | implemented |
+| Font-weight names map to standard numeric CSS; unknown names remain unresolved | `fontWeightValue`, `cssValue`, `TOKEN_INVALID_CSS_VALUE` | core.test.js Regular=400 and CustomWeight error | implemented |
+| `content.md` is referenced only when generated | conditional `ctxMd(..., contentPack)` | existing content-pack and generator tests | implemented |
+| Package lint covers JSON syntax/basic schemas, Markdown/HTML/CSS references, anchors, CSS variables, manifests and mode selectors | `packageLintFindings`; structured `code`, `severity`, `file`, `location`, `message`; findings included in validation.md/report | core.test.js cross-format defect and manifest/mode mismatch fixtures | implemented |
+| Package self-check cannot report 100/100 while source errors or warnings remain | `valid` check includes real validation findings; weighted score remains explainable | realistic fixture scores 95 with 13 warnings and zero package-integrity findings | implemented |
+
+## v2.0 token accounting and complete variant HTML
+
+| Requirement | Implementation | Test | Status |
+|---|---|---|---|
+| Source-token, alias, mode-value, emitted-CSS, unresolved and ambiguous-value counts are explainable | `tokenMapData().stats`; Accounting section in tokens.md; the same object in manifest.json | core.test.js token-map accounting fixture, including an unresolved token | implemented |
+| Canonical token data drives token-map.json, tokens.md, tokens.css and manifest output | `metadata/token-map.json` with stable IDs, alias paths, roles/provenance, usage and per-mode status; unresolved tokens are retained but not claimed as emitted CSS | core.test.js plus full-mode figma-mock.test.js | implemented |
+| Collection, default-mode and per-mode IDs survive extraction | `collectionId`, `defaultMode`, `modeMap` in the model and explicit collection mappings in token-map.json | figma-mock.test.js asserts c1, Light and m1 after real extraction | implemented |
+| Every variant of every component set is rendered by fig-engine | all-variant export loop; default variant selected from componentPropertyDefinitions rather than child order; separate HTML for non-default variants | figma-mock.test.js uses [Small, Medium] child order with Medium default and exports three HTML files across two families | implemented |
+| Partial component extraction is visible and machine-readable | `coverage` and per-variant `failed` rows in components/index.json; `COMPONENT_HTML_EXPORT_FAILED` validation error | figma-mock.test.js removes a node and asserts 3 source / 2 exported / 1 failed | implemented |
+
+## v2.0 Component Graph
+
+| Requirement | Implementation | Test | Status |
+|---|---|---|---|
+| Families, variants and their real properties are searchable without reading components.md | `componentGraphData().families`; every exported/failed variant carries stable source IDs, property values, HTML path and extraction state | core.test.js graph fixture; figma-mock.test.js Medium + Small graph assertions | implemented |
+| Component bindings and nested dependencies remain linked by stable Figma ID | extraction walks every variant plus boundVariables/fills/strokes/effects; graph token rows and resolved/missing/external dependency edges | core.test.js token and dependency fixture; figma-mock.test.js var:primary/var:size/var:space | implemented |
+| Observed instances and reference usage are evidence, not inferred examples | fig-engine `exportFrame.components[].instances`; graph links actual instance IDs to reference frame files | figma-mock.test.js asserts instance i1 in reference/Home.html | implemented |
+| Graph and package coverage cannot silently diverge | per-family extraction status/limitations plus graph count, dependency and statistics lint rules | core.test.js graph lint check; existing full-package lint tests | implemented |
+
+## v2.0 Pattern Extraction
+
+| Requirement | Implementation | Test | Status |
+|---|---|---|---|
+| References are grouped before pattern counts are reported | `patternData` groups by the complete normalized structure, then derives pattern/reference/repetition statistics from those groups | core.test.js three-reference fixture: two patterns, one repeated group and one singleton; figma-mock.test.js real export counts | implemented |
+| Fingerprints are deterministic and exclude transient IDs, text, generated classes, styles and variant values | IR-backed `exportFrame.structure`; fixed-order normalization and dual-hash-plus-length fingerprint; the full structure key prevents accidental hash merging | core.test.js reverses references and changes node IDs without changing fingerprints | implemented |
+| Every observation retains exact sources, independent structure, states and exceptions | per-occurrence reference file/page/frame evidence, source-node paths, normalized tree, component variant values, viewport/variant exceptions and `Observed` status | core.test.js evidence and exception assertions; figma-mock.test.js asserts real instance i1 in the Home pattern | implemented |
+| Pattern claims remain limited to observed structure and cannot drift from package statistics | explicit evidence levels and limitations; pattern stats/fingerprint/evidence lint plus shared manifest statistics | core.test.js pattern lint check and existing package-lint suite | implemented |

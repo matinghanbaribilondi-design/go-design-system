@@ -28,21 +28,22 @@ function fmt(val, type) {
 }
 function resolve(v, modeId, byId, colById) {
   const chain = [], ids = [], seen = new Set();
-  let cur = v, mid = modeId;
+  let cur = v, mid = modeId, aliasId = null;
   for (let i = 0; i < 25; i++) {
-    if (seen.has(cur.id)) return { status: 'circular', chain, ids };
+    if (seen.has(cur.id)) return { status: 'circular', chain, ids, aliasId };
     seen.add(cur.id);
     if (!(mid in cur.valuesByMode)) mid = colById[cur.variableCollectionId].defaultModeId;
     const val = cur.valuesByMode[mid];
     if (val && typeof val === 'object' && val.type === 'VARIABLE_ALIAS') {
+      if (aliasId === null) aliasId = val.id;
       const next = byId[val.id];
-      if (!next) return { status: 'unresolved', chain, ids };
+      if (!next) return { status: 'unresolved', chain, ids, aliasId };
       chain.push(next.name); ids.push(next.id); cur = next; continue;
     }
     const f = fmt(val, cur.resolvedType);
-    return f === null ? { status: 'invalid', chain, ids } : { status: 'resolved', value: f, chain, ids };
+    return f === null ? { status: 'invalid', chain, ids, aliasId } : { status: 'resolved', value: f, chain, ids, aliasId };
   }
-  return { status: 'circular', chain, ids };
+  return { status: 'circular', chain, ids, aliasId };
 }
 function category(v) {
   const n = v.name.toLowerCase();
@@ -166,7 +167,8 @@ function iconScore(d, rules) {
 
 // ---------- CSS tokens (pure): exact names, aliases kept as var(), modes as [data-theme] ----------
 const cssVar = n => '--' + String(n).split('/').map(slug).join('-');
-const fontWeightOf = sty => { sty = String(sty || '').toLowerCase(); return /black|heavy/.test(sty) ? 900 : /extra ?bold|ultra ?bold/.test(sty) ? 800 : /semi ?bold|demi/.test(sty) ? 600 : /bold/.test(sty) ? 700 : /medium/.test(sty) ? 500 : /extra ?light|ultra ?light/.test(sty) ? 200 : /light/.test(sty) ? 300 : /thin|hairline/.test(sty) ? 100 : 400; };
+const fontWeightValue = sty => { sty = String(sty || '').toLowerCase(); if (!sty) return null; return /black|heavy/.test(sty) ? 900 : /extra ?bold|ultra ?bold/.test(sty) ? 800 : /semi ?bold|demi/.test(sty) ? 600 : /bold/.test(sty) ? 700 : /medium/.test(sty) ? 500 : /normal|regular|book/.test(sty) ? 400 : /extra ?light|ultra ?light/.test(sty) ? 200 : /light/.test(sty) ? 300 : /thin|hairline/.test(sty) ? 100 : null; };
+const fontWeightOf = sty => fontWeightValue(sty) || 400;
 function cssUnit(t) {
   const n = t.name.toLowerCase(), c = t.category;
   if (['spacing', 'radius', 'size', 'border', 'breakpoint'].includes(c)) return 'px';
@@ -176,22 +178,43 @@ function cssUnit(t) {
 }
 function cssValue(t, v) {
   if (t.type === 'FLOAT') { let x = String(v); if (t.category === 'opacity' && Number(v) > 1) x = String(Math.round(Number(v)) / 100); return x + cssUnit(t); }
+  if (t.type === 'STRING' && t.category === 'typography' && /weight/i.test(t.name)) return fontWeightValue(v);
   if (t.type === 'STRING') return '"' + String(v).replace(/"/g, '\\"') + '"';
   return String(v);
 }
 const lhCss = s => s === 'auto' ? 'normal' : /%$/.test(s) ? String(Math.round(parseFloat(s) * 100) / 10000) : s;
 const lsCss = s => /%$/.test(s) ? (Math.round(parseFloat(s) * 100) / 10000) + 'em' : s;
 const styleSlug = n => String(n).split('/').map(slug).join('-');
+function nameHash(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(36);
+}
 function cssNameMap(tokens) {
-  const used = {}, byFigma = {}, byName = {}, collisions = [];
-  tokens.forEach(t => { let nm = cssVar(t.name); if (used[nm]) { collisions.push(t.name); let k = 2; while (used[nm + '-' + k]) k++; nm += '-' + k; } used[nm] = 1; byFigma[t.figmaId] = nm; byName[t.name] = nm; });
+  const groups = {}, used = new Set(), byFigma = {}, byName = {}, collisions = [], nameCount = {};
+  tokens.forEach(t => { const base = cssVar(t.name); (groups[base] = groups[base] || []).push(t); nameCount[t.name] = (nameCount[t.name] || 0) + 1; });
+  Object.keys(groups).sort().forEach(base => {
+    const list = groups[base].slice().sort((a, b) => String(a.collection || '').localeCompare(String(b.collection || '')) || String(a.figmaId).localeCompare(String(b.figmaId)) || a.name.localeCompare(b.name));
+    list.forEach(t => {
+      let nm = base;
+      if (list.length > 1) {
+        collisions.push(t.name);
+        const suffix = nameHash(String(t.collection || '') + '\u0000' + String(t.figmaId));
+        nm = base + '-' + suffix;
+        let k = 2;
+        while (used.has(nm)) nm = base + '-' + suffix + '-' + k++;
+      }
+      used.add(nm); byFigma[t.figmaId] = nm;
+      if (nameCount[t.name] === 1) byName[t.name] = nm;
+    });
+  });
   return { byFigma, byName, collisions };
 }
 function tokensCss(M, tokens, only) {
   tokens = tokens || M.tokens;
   const N = cssNameMap(tokens), root = [], themes = {}, modeOrder = [];
   let keep = null;
-  if (only) { keep = new Set(only); let ch = true; while (ch) { ch = false; tokens.forEach(t => { if (!keep.has(N.byFigma[t.figmaId])) return; Object.values(t.modes).forEach(r => { const a = r.chain && r.chain.length ? N.byName[r.chain[0]] : null; if (a && !keep.has(a)) { keep.add(a); ch = true; } }); }); } }
+  if (only) { keep = new Set(only); let ch = true; while (ch) { ch = false; tokens.forEach(t => { if (!keep.has(N.byFigma[t.figmaId])) return; Object.values(t.modes).forEach(r => { const a = r.aliasId ? N.byFigma[r.aliasId] : r.chain && r.chain.length ? N.byName[r.chain[0]] : null; if (a && !keep.has(a)) { keep.add(a); ch = true; } }); }); } }
   const L = [];
   if (!only) L.push('/* tokens.css — generated from the Figma file "' + M.fileName + '"', ' * Rules: see design.md > "Rules for AI agents". Use ONLY the variables and .text-* classes below, written exactly.', ' * If a value is missing, follow ai-control.md for the current adherence level. Comments show the exact Figma names. */', '');
   const allDep = tokens.length > 0 && tokens.every(t => t.origin === 'dependency');
@@ -202,7 +225,8 @@ function tokensCss(M, tokens, only) {
     list.forEach(t => {
       const valOf = m => {
         const r = t.modes[m]; if (!r || r.status !== 'resolved' || t.type === 'BOOLEAN') return null;
-        if (r.chain && r.chain.length && N.byName[r.chain[0]]) return 'var(' + N.byName[r.chain[0]] + ')';
+        const alias = r.aliasId ? N.byFigma[r.aliasId] : r.chain && r.chain.length ? N.byName[r.chain[0]] : null;
+        if (alias) return 'var(' + alias + ')';
         return cssValue(t, r.value);
       };
       const base = valOf(modes[0]), name = N.byFigma[t.figmaId];
@@ -226,6 +250,167 @@ function tokensCss(M, tokens, only) {
   modeOrder.forEach(k => L.push('', '[data-theme="' + k + '"] { /* mode: ' + themes[k].mode + ' */\n' + themes[k].lines.join('\n') + '\n}'));
   if (tl.length) L.push('', '/* ---- Text styles ---- */', tl.join('\n\n'));
   return { content: L.join('\n') + '\n', names: N };
+}
+function tokenMapData(M, tokens, N, css) {
+  const rows = tokens.map(t => {
+    const cssVar = N.byFigma[t.figmaId], emitted = new RegExp('(?:^|\\n)\\s*' + cssVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*:').test(css || ''), modes = {};
+    Object.entries(t.modes).forEach(([name, r]) => { modes[name] = { status: r.status, value: r.status === 'resolved' ? r.value : null, aliasId: r.aliasId || null, aliasIds: (t.aliasIds && t.aliasIds[name]) || [], chain: (r.chain || []).slice() }; });
+    return { id: t.id, figmaId: t.figmaId, name: t.name, type: t.type, collection: t.collection, collectionId: t.collectionId || null, defaultMode: t.defaultMode || Object.keys(t.modes)[0] || null, cssVar, cssEmitted: emitted, role: t.role || 'unknown', roleStatus: t.roleStatus || 'observed', roleSource: t.roleSource || 'figma-structure', origin: t.origin, requiredBy: (t.requiredBy || []).slice(), usedBy: (t.usedBy || []).slice(), modes, status: Object.values(t.modes).every(r => r.status === 'resolved') ? 'resolved' : 'unresolved' };
+  });
+  const values = tokens.reduce((a, t) => a.concat(Object.values(t.modes)), []), count = status => values.filter(r => r.status === status).length;
+  const stats = { sourceTokens: tokens.length, aliasTokens: tokens.filter(t => Object.values(t.modes).some(r => r.aliasId || (r.chain || []).length)).length, modeValues: { total: values.length, resolved: count('resolved'), unresolved: count('unresolved'), circular: count('circular'), invalid: count('invalid') }, cssVariables: rows.filter(t => t.cssEmitted).length, notEmitted: rows.filter(t => !t.cssEmitted).length, ambiguousValues: valueMatchIssues(tokens).length };
+  const collections = (M.collections || []).map(c => ({ id: c.id || null, name: c.name, defaultMode: c.defaultMode || (c.modes || [])[0] || null, modes: (c.modes || []).map((m, i) => ({ name: m, id: c.modeMap && c.modeMap[m] || null, theme: i === 0 ? null : styleSlug(m), status: 'mapped' })) }));
+  return { source: { type: 'figma', fileName: M.fileName }, stats, collections, tokens: rows };
+}
+function componentGraphData(M, rows, failed) {
+  rows = rows || []; failed = failed || [];
+  const components = M.components || [], byFamily = Object.fromEntries(components.map(c => [c.figmaId, c])), tokenById = Object.fromEntries((M.tokens || []).map(t => [t.figmaId, t])), tokenByName = Object.fromEntries((M.tokens || []).map(t => [t.name, t]));
+  const instances = [];
+  refFileNames(M).forEach(r => (r.components || []).forEach(u => {
+    const detailed = Array.isArray(u.instances) && u.instances.length > 0, observed = detailed ? u.instances : [{ id: null, name: u.name }];
+    observed.forEach(i => instances.push({ id: i.id || null, name: i.name || u.name, componentId: u.id, familyId: u.familyId || u.id, variantProperties: u.variantProperties || {}, referenceId: r.id, reference: r.name, page: r.page, file: 'reference/' + r.file, status: 'observed', evidence: detailed ? 'figma-instance' : 'figma-component-reference' }));
+  }));
+  instances.sort((a, b) => a.file.localeCompare(b.file) || String(a.id || '').localeCompare(String(b.id || '')) || a.componentId.localeCompare(b.componentId));
+  const rowsFor = c => rows.filter(r => (r.familyId || r.variantOf || r.figmaId) === c.figmaId);
+  const failedFor = c => failed.filter(f => f.id === c.id || String(f.id || '').indexOf(c.id + '.variant.') === 0 || f.figmaId === c.figmaId);
+  const edges = [], families = components.map(c => {
+    const successful = rowsFor(c), failures = failedFor(c), famInstances = instances.filter(i => i.familyId === c.figmaId);
+    const variants = successful.map(r => ({ id: r.nodeId || r.figmaId, entityId: r.id, familyId: c.figmaId, name: r.metadata && r.metadata.name || r.name, exportName: r.name, properties: r.metadata && r.metadata.variantProperties || {}, isDefault: r.isDefault !== false, status: 'exported', file: r.file, usedIn: (r.usedIn || []).slice().sort() })).concat(failures.map(f => ({ id: f.figmaId || null, entityId: f.id, familyId: c.figmaId, name: f.name, exportName: f.name, properties: {}, isDefault: f.id === c.id, status: 'failed', file: null, error: f.reason, usedIn: [] })));
+    variants.sort((a, b) => (a.isDefault === b.isDefault ? a.exportName.localeCompare(b.exportName) : a.isDefault ? -1 : 1));
+    const dependencies = (c._nested || []).map(d => {
+      const status = byFamily[d.nodeId] ? 'resolved' : d.remote ? 'external' : 'missing';
+      edges.push({ from: c.figmaId, to: d.nodeId, type: 'nested-component', status });
+      return { id: d.nodeId, name: d.name, status, remote: d.remote === true };
+    }).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+    const tokenIds = new Set(c._tokenIds || []); (c.tokens || []).forEach(n => { if (tokenByName[n]) tokenIds.add(tokenByName[n].figmaId); });
+    const tokens = [...tokenIds].map(id => tokenById[id]).filter(Boolean).map(t => ({ id: t.id, figmaId: t.figmaId, name: t.name })).sort((a, b) => a.name.localeCompare(b.name) || a.figmaId.localeCompare(b.figmaId));
+    const sourceVariants = c.variants || 1, status = failures.length ? (successful.length ? 'partial' : 'failed') : successful.length < sourceVariants ? 'partial' : 'extracted';
+    const limitations = failures.map(f => 'HTML export failed for ' + f.name + ': ' + f.reason).concat(dependencies.filter(d => d.status !== 'resolved').map(d => 'Nested component ' + d.name + ' is ' + d.status + '.'));
+    return { id: c.figmaId, entityId: c.id, name: c.name, kind: c.kind, page: c.page, description: c.description || '', properties: c.properties || [], states: c.states || [], variants, tokens, dependencies, instances: famInstances, usedIn: [...new Set(famInstances.map(i => i.file.replace(/^reference\//, '')))].sort(), extraction: { status, sourceVariants, exportedVariants: successful.length, failedVariants: failures.length, limitations } };
+  });
+  const stats = { families: families.length, sourceVariants: families.reduce((n, f) => n + f.extraction.sourceVariants, 0), exportedVariants: rows.length, failedVariants: failed.length, instances: instances.length, dependencies: edges.length, missingDependencies: edges.filter(e => e.status === 'missing').length, externalDependencies: edges.filter(e => e.status === 'external').length };
+  return { families, edges, stats };
+}
+
+// ---------- Observed reference patterns ----------
+const HTML_VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+const htmlEntity = s => String(s || '').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+function htmlStructure(html) {
+  const roots = [], stack = [], re = /<!--[\s\S]*?-->|<![^>]*>|<\/?[a-zA-Z][^>]*>/g;
+  let m;
+  while ((m = re.exec(String(html || '')))) {
+    const token = m[0];
+    if (token.startsWith('<!--') || token.startsWith('<!')) continue;
+    if (token.startsWith('</')) {
+      const tag = token.slice(2, -1).trim().toLowerCase();
+      for (let i = stack.length - 1; i >= 0; i--) if (stack[i].tag === tag) { stack.length = i; break; }
+      continue;
+    }
+    const head = /^<([a-zA-Z][\w:-]*)/.exec(token);
+    if (!head) continue;
+    const tag = head[1].toLowerCase(), attrs = {}, body = token.slice(head[0].length, token.length - 1);
+    const ar = /([:\w-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+    let a;
+    while ((a = ar.exec(body))) attrs[a[1].toLowerCase()] = htmlEntity(a[2] === undefined ? (a[3] === undefined ? a[4] : a[3]) : a[2]);
+    const n = { id: null, tag, children: [] };
+    if (attrs['data-component'] || attrs['data-component-family']) {
+      n.componentId = attrs['data-component-id'] || null;
+      n.componentName = attrs['data-component'] || attrs['data-component-family'];
+      n.componentFamilyId = attrs['data-component-family-id'] || n.componentId;
+      n.componentFamilyName = attrs['data-component-family'] || n.componentName;
+      const variants = {};
+      Object.keys(attrs).filter(k => k.startsWith('data-variant-')).sort().forEach(k => { variants[k.slice(13)] = attrs[k]; });
+      if (Object.keys(variants).length) n.variantProperties = variants;
+    }
+    if (attrs.href || attrs['data-go']) n.link = true;
+    if (attrs.type) n.control = attrs.type;
+    (stack.length ? stack[stack.length - 1].children : roots).push(n);
+    if (!token.endsWith('/>') && !HTML_VOID.has(tag)) stack.push(n);
+  }
+  return roots;
+}
+function sortedPatternProps(props) {
+  const out = {};
+  Object.keys(props || {}).sort().forEach(k => { out[k] = String(props[k]); });
+  return out;
+}
+function normalizePatternNode(n) {
+  const out = { tag: String(n.tag || 'div').toLowerCase() };
+  const component = n.componentFamilyName || n.componentName;
+  if (component) out.component = component;
+  if (n.link) out.link = true;
+  if (n.control) out.control = String(n.control);
+  out.children = (n.children || []).map(normalizePatternNode);
+  return out;
+}
+function patternFingerprint(key) {
+  return 'structure-v1:' + nameHash(key) + '-' + nameHash('\u0000' + key) + '-' + key.length.toString(36);
+}
+function patternExceptions(occurrences) {
+  const out = [], sizes = [...new Set(occurrences.map(o => o.width + 'x' + o.height))];
+  if (sizes.length > 1) out.push({ type: 'viewport-size', observations: occurrences.map(o => ({ referenceId: o.referenceId, file: o.file, width: o.width, height: o.height })) });
+  const byFamily = {};
+  occurrences.forEach(o => (o.components || []).forEach(c => {
+    const key = c.familyId || c.componentId || c.name;
+    (byFamily[key] = byFamily[key] || []).push({ referenceId: o.referenceId, file: o.file, componentId: c.componentId, instanceId: c.instanceId, variantProperties: c.variantProperties });
+  }));
+  Object.keys(byFamily).sort().forEach(familyId => {
+    const observations = byFamily[familyId], states = [...new Set(observations.map(o => JSON.stringify(o.variantProperties)))];
+    if (states.length > 1) out.push({ type: 'component-variant', familyId, observations });
+  });
+  return out;
+}
+function patternData(M) {
+  const groups = new Map();
+  refFileNames(M).forEach(r => {
+    const fromIr = !!r.structure, roots = fromIr ? [r.structure] : htmlStructure(r.body);
+    if (!fromIr && roots.length === 1) roots[0].id = r.id;
+    const structure = roots.filter(Boolean).map(normalizePatternNode), key = JSON.stringify(structure), nodes = [], components = [];
+    const walk = (n, path) => {
+      const row = { id: n.id || null, path: path.join('.'), tag: String(n.tag || 'div').toLowerCase() };
+      if (n.componentId || n.componentName) {
+        row.componentId = n.componentId || null;
+        row.familyId = n.componentFamilyId || n.componentId || null;
+        row.name = n.componentName || n.componentFamilyName;
+        components.push({ componentId: row.componentId, familyId: row.familyId, name: row.name, instanceId: n.id || null, variantProperties: sortedPatternProps(n.variantProperties) });
+      }
+      nodes.push(row);
+      (n.children || []).forEach((c, i) => walk(c, path.concat(i)));
+    };
+    roots.filter(Boolean).forEach((n, i) => walk(n, [i]));
+    components.sort((a, b) => String(a.familyId || '').localeCompare(String(b.familyId || '')) || String(a.componentId || '').localeCompare(String(b.componentId || '')) || String(a.instanceId || '').localeCompare(String(b.instanceId || '')));
+    const occurrence = { referenceId: r.id, reference: r.name, page: r.page, file: 'reference/' + r.file, width: r.w, height: r.h, evidenceLevel: fromIr ? 'figma-ir' : 'reference-html', nodes, components };
+    if (!groups.has(key)) groups.set(key, { key, structure, occurrences: [] });
+    groups.get(key).occurrences.push(occurrence);
+  });
+  const used = {}, patterns = [...groups.values()].sort((a, b) => a.key.localeCompare(b.key)).map(g => {
+    const fingerprint = patternFingerprint(g.key), base = 'pattern.' + fingerprint.slice(fingerprint.indexOf(':') + 1);
+    let id = base, i = 2; while (used[id]) id = base + '-' + i++; used[id] = true;
+    const occurrences = g.occurrences.sort((a, b) => a.file.localeCompare(b.file) || a.referenceId.localeCompare(b.referenceId));
+    const limitations = [];
+    if (occurrences.some(o => o.evidenceLevel !== 'figma-ir')) limitations.push('Fallback HTML does not provide non-component Figma node IDs.');
+    return { id, fingerprint, status: 'Observed', structure: g.structure, occurrences, exceptions: patternExceptions(occurrences), limitations };
+  });
+  const stats = { references: patterns.reduce((n, p) => n + p.occurrences.length, 0), patterns: patterns.length, repeatedPatterns: patterns.filter(p => p.occurrences.length > 1).length, groupedReferences: patterns.reduce((n, p) => n + (p.occurrences.length > 1 ? p.occurrences.length : 0), 0), singletonPatterns: patterns.filter(p => p.occurrences.length === 1).length };
+  return { schemaVersion: '1.0.0', status: 'Observed', fingerprint: { algorithm: 'dual-fnv1a32-length', normalization: 'html-structure-v1', excludes: ['text content', 'generated class names', 'inline styles', 'Figma node IDs', 'component variant values'] }, limitations: ['Patterns describe observed HTML structure, not inferred semantic intent or visual similarity.'], stats, patterns };
+}
+function referenceIndexData(M, observed) {
+  const refs = refFileNames(M), targets = Object.fromEntries(refs.map(r => [r.id, r])), byRef = {};
+  (observed.patterns || []).forEach(p => p.occurrences.forEach(o => {
+    const row = byRef[o.referenceId] || (byRef[o.referenceId] = { patterns: [], components: [] });
+    row.patterns.push({ id: p.id, fingerprint: p.fingerprint, status: p.status });
+    row.components.push(...(o.components || []));
+  }));
+  const entries = refs.map(r => {
+    const found = byRef[r.id] || { patterns: [], components: [] }, components = found.components.map(c => ({ id: c.componentId, familyId: c.familyId, name: c.name, instanceId: c.instanceId, variantProperties: sortedPatternProps(c.variantProperties) })).sort((a, b) => String(a.familyId || '').localeCompare(String(b.familyId || '')) || String(a.id || '').localeCompare(String(b.id || '')) || String(a.instanceId || '').localeCompare(String(b.instanceId || '')));
+    const links = [...new Set(r.links || [])].sort().map(id => {
+      const target = targets[id];
+      return { destinationId: id, status: target ? 'resolved' : 'unresolved-in-package', file: target ? 'reference/' + target.file : null };
+    });
+    return { id: r.id, name: r.name, page: r.page, file: 'reference/' + r.file, width: r.w, height: r.h, nodes: r.nodes, engine: r.engine || 'unknown', rtl: r.rtl === true, patterns: found.patterns.sort((a, b) => a.id.localeCompare(b.id)), components, componentIds: [...new Set(components.map(c => c.id).filter(Boolean))].sort(), familyIds: [...new Set(components.map(c => c.familyId).filter(Boolean))].sort(), vars: [...new Set(r.vars || [])].sort(), links };
+  }).sort((a, b) => a.file.localeCompare(b.file) || a.id.localeCompare(b.id));
+  const stats = { references: entries.length, pages: new Set(entries.map(e => e.page)).size, withComponents: entries.filter(e => e.components.length).length, withLinks: entries.filter(e => e.links.length).length, resolvedLinks: entries.reduce((n, e) => n + e.links.filter(l => l.status === 'resolved').length, 0), unresolvedLinks: entries.reduce((n, e) => n + e.links.filter(l => l.status !== 'resolved').length, 0) };
+  return { schemaVersion: '1.0.0', status: 'Observed', stats, entries };
 }
 
 // ---------- Reference HTML documents (pure assembly) ----------
@@ -315,9 +500,10 @@ function aiControlMd(level) {
 
 function skillMd(M, X) {
   const comps = M.components || [], refs = M.refs || [], html = (M.componentHtml && M.componentHtml.ok) || [];
-  const files = ['`design.md` — rules and overview', '`tokens.css` — every value', '`components.css` + `components/*.html` — component markup and spec', '`components/index.json` — component registry'];
+  const files = ['`design.md` — rules and overview', '`tokens.css` — every value', '`components.css` + `components/*.html` — component markup and spec', '`components/index.json` — component graph, observed patterns and reference index'];
   if (refs.length) files.push('`reference/*.html` — one file per frame, that frame only');
   files.push('`manifest.json` — sources, entities and outputs');
+  const retrieval = refs.length ? '## Contextual retrieval\n\n1. Start in `components/index.json`; do not open every reference. Filter `references.entries` by page, frame name, viewport, component/family ID, variant properties, token variable or pattern ID.\n2. Open only the selected entry\'s `file`. For a component task, read its family/variant in `graph` and its canonical HTML before opening composition evidence.\n3. For layout reuse, select a pattern, read its normalized `structure`, then open only relevant occurrences. Apply every viewport or component-variant exception; never turn an observed structure into an inferred semantic rule.\n4. Follow only links whose status is `resolved`. `unresolved-in-package` names a destination that is not available as package evidence.\n5. Use `tokens.css` for values and component HTML for canonical markup; references provide composition evidence only.\n\n' : '';
   return '---\nname: ' + slug(M.fileName || 'design-system') + '-design-system\ndescription: Design system exported from the Figma file "' + (M.fileName || '') + '". Use when building UI that must follow these tokens, components and rules.\n---\n' +
     '# ' + (M.fileName || 'Design System') + ' — agent entrypoint\n\n' +
     'This package is the source of truth. Do not restyle it from screenshots; read the files.\n\n' +
@@ -327,12 +513,13 @@ function skillMd(M, X) {
     '- Components come from `components/index.json`; the HTML next to it is the canonical markup for the default variant.\n' +
     '- `reference/` pages are evidence of composition, not a source of values.\n' +
     '- If a value or component is missing, say so and propose a token; never hard-code a replacement.\n\n' +
+    retrieval +
     '## Rules\n\n' +
     '- Use `var(--name)` and the `.text-*` classes; never literals.\n' +
     '- Keep component structure and class names from `components/*.html` unless the user asks for a variant.\n' +
     '- Do not edit `tokens.css`, `components.css` or `manifest.json` by hand.\n' +
     '- Read `ai-control.md` before creative work: its `adherence_level` controls how far you may deviate.\n\n' +
-    '## Inventory\n\n' + tbl(['Item', 'Count'], [['Tokens', (M.tokens || []).length], ['Components', comps.length], ['Component HTML', html.length], ['Icons', X && X.icons ? X.icons.total : 0], ['Reference pages', refs.length], ['Text styles', M.styles.text.length]]) +
+    '## Inventory\n\n' + tbl(['Item', 'Count'], [['Tokens', (M.tokens || []).length], ['Components', comps.length], ['Component HTML', html.length], ['Icons', X && X.icons ? X.icons.total : 0], ['Reference pages', refs.length], ['Observed patterns', X && X.patterns ? X.patterns.stats.patterns : 0], ['Text styles', M.styles.text.length]]) +
     (comps.length ? '\n## Components\n\n' + comps.slice(0, 40).map(c => '- ' + c.name + ' (' + c.kind + ', ' + c.variants + ' variant(s))').join('\n') + '\n' : '') +
     (refs.length ? '\n## References\n\n' + refFileNames(M).slice(0, 40).map(r => '- ' + r.name + ' → `reference/' + r.file + '`').join('\n') + '\n' : '');
 }
@@ -384,17 +571,19 @@ function deriveTokens(components, taken) {
   const out = [], mk = (map, prefix, cat) => Object.keys(map).map(Number).sort((a, b) => a - b).forEach(v => { let css = '--' + prefix + '-' + String(v).replace('.', '-'); while (taken[css]) css += '-d'; taken[css] = 1; out.push({ css, value: v + 'px', category: cat, uses: map[v], px: v }); });
   mk(sp, 'space', 'spacing'); mk(rad, 'radius', 'radius'); mk(bw, 'border-width', 'border'); return out;
 }
+const bindingCss = (x, N) => (x.boundId && N.byFigma[x.boundId]) || N.byName[x.bound] || cssVar(x.bound);
 function enrichModel(M) {
   if (M.enriched) return M.enriched;
   uniquifyComponents(M.components);
-  const N = cssNameMap(M.tokens), taken = {}; Object.keys(N.byName).forEach(k => taken[N.byName[k]] = 1);
-  const colorToks = M.tokens.filter(t => t.type === 'COLOR').map(t => { const r = Object.values(t.modes)[0]; return r && r.status === 'resolved' ? { css: N.byFigma[t.figmaId], hex: String(r.value).slice(0, 7).toUpperCase(), role: t.role } : null; }).filter(Boolean).sort((a, b) => (a.role === 'semantic' ? 0 : 1) - (b.role === 'semantic' ? 0 : 1));
+  const N = cssNameMap(M.tokens), taken = {}; Object.keys(N.byFigma).forEach(k => taken[N.byFigma[k]] = 1);
+  const colorCandidates = colorValueCandidates(M.tokens);
+  const colorToks = M.tokens.filter(t => t.type === 'COLOR').map(t => { const r = Object.values(t.modes)[0]; return r && r.status === 'resolved' && colorCandidates[String(r.value).toUpperCase()].length === 1 ? { css: N.byFigma[t.figmaId], hex: String(r.value).slice(0, 7).toUpperCase(), role: t.role } : null; }).filter(Boolean).sort((a, b) => (a.role === 'semantic' ? 0 : 1) - (b.role === 'semantic' ? 0 : 1));
   const derived = deriveTokens(M.components, taken), dmap = {}; derived.forEach(d => dmap[d.px + '|' + d.category] = d.css);
   const cov = { total: 0, bound: 0, derived: 0, exact: 0, nearest: 0, text: { total: 0, bound: 0, exact: 0, near: 0, none: 0 } }, gaps = {};
   M.components.forEach(c => {
     const lines = [], sp = c.spec || [], get = p => sp.find(x => x.prop === p), box = (names, mapKey) => {
       const items = names.map(n => get(n)); if (!items.some(Boolean)) return null;
-      return items.map(x => { if (!x) return '0'; const v = parseFloat(x.raw); if (x.bound) { cov.total++; cov.bound++; return 'var(' + (N.byName[x.bound] || cssVar(x.bound)) + ')'; } if (!isFinite(v) || v === 0) return '0'; cov.total++; cov.derived++; return 'var(' + dmap[v + '|' + mapKey] + ')'; });
+      return items.map(x => { if (!x) return '0'; const v = parseFloat(x.raw); if (x.bound) { cov.total++; cov.bound++; return 'var(' + (bindingCss(x, N)) + ')'; } if (!isFinite(v) || v === 0) return '0'; cov.total++; cov.derived++; return 'var(' + dmap[v + '|' + mapKey] + ')'; });
     };
     lines.push('display: flex; flex-direction: ' + ((get('flex-direction') || {}).raw || 'row') + ';'); if (!get('display')) lines.pop();
     const pad = box(['padding-top', 'padding-right', 'padding-bottom', 'padding-left'], 'spacing');
@@ -404,7 +593,7 @@ function enrichModel(M) {
     const bwid = box(['border-width'], 'border');
     const colorOf = x => {
       cov.total++;
-      if (x.bound) { cov.bound++; return { v: 'var(' + (N.byName[x.bound] || cssVar(x.bound)) + ')', note: '' }; }
+      if (x.bound) { cov.bound++; return { v: 'var(' + (bindingCss(x, N)) + ')', note: '' }; }
       const hx = String(x.raw).slice(0, 7).toUpperCase(), nn = nearestColor(hx, colorToks); if (!nn) return { v: x.raw, note: '' };
       if (nn.d === 0) { cov.exact++; return { v: 'var(' + nn.css + ')', note: '' }; }
       cov.nearest++; const g = gaps[hx] = gaps[hx] || { hex: hx, uses: 0, nearest: nn }; g.uses++; return { v: 'var(' + nn.css + ')', note: ' /* Figma: ' + hx + ' has no token; nearest, distance ' + nn.d + ' */' };
@@ -412,17 +601,18 @@ function enrichModel(M) {
     const bc = get('border-color'), bg = get('background-color');
     if (bwid && bc && bwid[0] !== '0') { const cc = colorOf(bc); lines.push('border: ' + bwid[0] + ' solid ' + cc.v + ';' + cc.note); }
     if (bg) { const cc = colorOf(bg); lines.push('background-color: ' + cc.v + ';' + cc.note); }
-    const w = get('width'), h = get('height'); if (w && h && !w.bound && !h.bound) lines.push('width: ' + w.raw + '; height: ' + h.raw + '; /* fixed size from Figma */'); else { if (w) lines.push('width: ' + (w.bound ? 'var(' + (N.byName[w.bound] || cssVar(w.bound)) + ')' : w.raw) + ';'); if (h) lines.push('height: ' + (h.bound ? 'var(' + (N.byName[h.bound] || cssVar(h.bound)) + ')' : h.raw) + ';'); }
+    const w = get('width'), h = get('height'); if (w && h && !w.bound && !h.bound) lines.push('width: ' + w.raw + '; height: ' + h.raw + '; /* fixed size from Figma */'); else { if (w) lines.push('width: ' + (w.bound ? 'var(' + (bindingCss(w, N)) + ')' : w.raw) + ';'); if (h) lines.push('height: ' + (h.bound ? 'var(' + (bindingCss(h, N)) + ')' : h.raw) + ';'); }
     const texts = [];
     sp.filter(x => x.prop === 'text').forEach(x => { cov.text.total++; if (x.textStyle) { cov.text.bound++; texts.push('"' + x.node + '" → .text-' + styleSlug(x.textStyle)); return; } const m = matchTextStyle({ size: x.size, weight: x.weight, lh: x.lh }, M.styles.text || []); if (m.exact.length) { cov.text.exact++; texts.push('"' + x.node + '" → ' + m.exact[0] + ' (exact match: ' + x.raw + ')'); } else if (m.near.length) { cov.text.near++; texts.push('"' + x.node + '" → closest ' + m.near.slice(0, 2).join(' or ') + ' (same size, weight differs)'); } else { cov.text.none++; texts.push('"' + x.node + '" → no text style has size ' + x.raw + ' (report it, do not invent one)'); } });
     c.css = { lines, texts };
   });
-  M.enriched = { derived, colorGaps: Object.keys(gaps).map(k => gaps[k]).sort((a, b) => b.uses - a.uses), coverage: cov, icons: iconSummary(M), screens: groupScreens(M) };
+  const patterns = patternData(M);
+  M.enriched = { derived, colorGaps: Object.keys(gaps).map(k => gaps[k]).sort((a, b) => b.uses - a.uses), coverage: cov, icons: iconSummary(M), screens: groupScreens(M), patterns, references: referenceIndexData(M, patterns) };
   return M.enriched;
 }
 
 // ---------- Project context rendering (compact) ----------
-function ctxMd(C, rejInf, X) {
+function ctxMd(C, rejInf, X, contentPack) {
   const rej = new Set(rejInf || []), L = [];
   const src = k => (C.src && C.src[k]) || '', tag = k => /user/.test(src(k)) ? '' : src(k) ? ' (' + src(k).replace(/\s*\(.*$/, '') + ')' : '';
   if (C.product.name) L.push('- Product: ' + C.product.name + (C.provided && /user/.test(src('Product')) ? '' : ' (from the Figma file name)'));
@@ -431,7 +621,7 @@ function ctxMd(C, rejInf, X) {
   if (C.capabilities.length) L.push('- Capabilities: ' + C.capabilities.join(', ')); if (C.flows.length) L.push('- Flows: ' + C.flows.join(', '));
   if (C.platforms.length) L.push('- Platforms: ' + C.platforms.join(', ')); if (C.localization.language) L.push('- Language: ' + C.localization.language + tag('Language')); if (C.localization.direction) L.push('- Direction: ' + C.localization.direction + tag('Direction'));
   C.notes.forEach(n => L.push('- Note: ' + n));
-  if (X && X.screens && X.screens.total) L.push('- Screens: ' + (X.screens.total - X.screens.sheets) + ' top-level frame(s) on ' + X.screens.pages.length + ' page(s)' + (X.screens.sheets ? ', ' + X.screens.sheets + ' icon sheet(s) excluded' : '') + ' (details in content.md)');
+  if (X && X.screens && X.screens.total) L.push('- Screens: ' + (X.screens.total - X.screens.sheets) + ' top-level frame(s) on ' + X.screens.pages.length + ' page(s)' + (X.screens.sheets ? ', ' + X.screens.sheets + ' icon sheet(s) excluded' : '') + (contentPack ? ' (details in content.md)' : ''));
   C.inferences.filter(i => !rej.has(i.id)).forEach(i => L.push('- [inference ' + Math.round(i.confidence * 100) + '%] ' + i.statement + ' — ' + i.evidence.join('; ')));
   const miss = C.unknown.filter(u => !(u === 'Product' && C.product.name) && !(u === 'Description' && C.product.description));
   if (miss.length && C.provided) L.push('- Not provided: ' + miss.join(', '));
@@ -459,6 +649,7 @@ function validate(M, extra) {
     if (r.status === 'circular') add('TOKEN_CIRCULAR_REFERENCE', 'error', t.id, 'Circular alias in mode "' + m + '".', 'Review token aliases.');
     else if (r.status === 'unresolved') add('TOKEN_UNRESOLVED_REFERENCE', 'error', t.id, 'Alias target missing in mode "' + m + '".', 'Restore or relink the aliased variable.');
     else if (r.status === 'invalid') add('TOKEN_INVALID_VALUE', 'warning', t.id, 'Unsupported value type in mode "' + m + '".', 'Check variable value.');
+    else if (r.status === 'resolved' && !r.chain.length && cssValue(t, r.value) === null) add('TOKEN_INVALID_CSS_VALUE', 'error', t.id, 'Value cannot be mapped to valid CSS in mode "' + m + '".', 'Use a standard value or bind the token explicitly.');
   }));
   const sepOf = n => n.includes('/') ? '/' : n.includes('.') ? '.' : n.includes('-') ? '-' : 'none', cnt = {};
   M.tokens.forEach(t => { const s = sepOf(t.name); cnt[s] = (cnt[s] || 0) + 1; });
@@ -557,11 +748,134 @@ function rulesMd(M) {
     (themes.length ? '7. Support every theme mode via `[data-theme="<mode>"]`: ' + [...new Set([].concat(...themes.map(c => c.modes)))].join(', ') + '.\n' : '7. This file has a single mode; no theme switching is needed.\n') +
     '8. Before answering, list every variable and class you used and confirm each exists in tokens.css.\n9. Creative freedom is set by `adherence_level` (0–10) in ai-control.md. Read it before every task. Rules 1 and 2 never change at any level.\n';
 }
+function packageLintFindings(files, M) {
+  const findings = [], byPath = new Map(files.map(f => [f.path, f])), parsed = {};
+  const add = (code, severity, file, location, message, recovery) => findings.push({ code, severity, file, location: location || 'root', message, recovery });
+  const at = (content, index) => { const before = content.slice(0, Math.max(0, index)); const line = before.split('\n').length, col = index - before.lastIndexOf('\n'); return 'line ' + line + ', column ' + col; };
+  const resolveRef = (from, raw) => {
+    let value = String(raw || '').trim(); if (!value || /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(value)) return null;
+    const hash = value.indexOf('#'), anchor = hash >= 0 ? value.slice(hash + 1) : ''; value = value.slice(0, hash >= 0 ? hash : undefined).split('?')[0];
+    try { value = decodeURIComponent(value); } catch (e) { return { invalid: true, anchor }; }
+    const base = value.startsWith('/') ? [] : from.split('/').slice(0, -1), parts = base.concat(value.split('/')), out = [];
+    for (const part of parts) { if (!part || part === '.') continue; if (part === '..') { if (!out.length) return { invalid: true, anchor }; out.pop(); } else out.push(part); }
+    return { path: out.join('/'), anchor };
+  };
+  const checkRef = (file, raw, index, root) => {
+    const r = resolveRef(root ? '' : file, raw); if (!r) return;
+    const content = (byPath.get(file) || {}).content || '', loc = at(content, index || 0);
+    if (r.invalid || !r.path && !r.anchor) { add('PACKAGE_INVALID_REFERENCE', 'error', file, loc, 'Invalid internal reference "' + raw + '".', 'Use a valid package-relative path.'); return; }
+    const targetPath = r.path || file, target = byPath.get(targetPath);
+    if (!target) { add('PACKAGE_BROKEN_REFERENCE', 'error', file, loc, 'Target "' + raw + '" does not exist.', 'Generate the target or remove the reference.'); return; }
+    if (!r.anchor || typeof target.content !== 'string') return;
+    const anchor = decodeURIComponent(r.anchor), found = /\.md$/i.test(targetPath)
+      ? (target.content.match(/^#{1,6}\s+.+$/gm) || []).some(h => anchorOf(h.replace(/^#{1,6}\s+/, '')) === anchor)
+      : new RegExp('\\bid=["\\\']' + anchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '["\\\']').test(target.content);
+    if (!found) add('PACKAGE_BROKEN_ANCHOR', 'error', file, loc, 'Anchor "' + r.anchor + '" does not exist in ' + targetPath + '.', 'Link to an existing heading or element ID.');
+  };
+  files.forEach(f => {
+    if (f.binary || typeof f.content !== 'string') return;
+    if (/\.json$/i.test(f.path)) {
+      try { parsed[f.path] = JSON.parse(f.content); } catch (e) { add('JSON_INVALID', 'error', f.path, at(f.content, Number((String(e.message).match(/position\s+(\d+)/) || [])[1]) || 0), e.message, 'Fix the JSON syntax.'); }
+    }
+    if (/\.md$/i.test(f.path)) { const re = /!?\[[^\]]*\]\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+[^)]*)?\)/g; let m; while ((m = re.exec(f.content))) checkRef(f.path, m[1] || m[2], m.index); }
+    if (/\.html$/i.test(f.path)) { const re = /\b(?:href|src|data-go)\s*=\s*["']([^"']+)["']/g; let m; while ((m = re.exec(f.content))) checkRef(f.path, m[1], m.index); }
+    if (/\.(?:css|html)$/i.test(f.path)) {
+      const re = /url\(\s*(['"]?)([^)'"\s]+)\1\s*\)/g; let m; while ((m = re.exec(f.content))) checkRef(f.path, m[2], m.index);
+      const im = /@import\s+(?:url\()?\s*["']([^"']+)["']/g; while ((m = im.exec(f.content))) checkRef(f.path, m[1], m.index);
+    }
+    if (/\.css$/i.test(f.path)) {
+      const opens = (f.content.match(/\{/g) || []).length, closes = (f.content.match(/\}/g) || []).length;
+      if (opens !== closes) add('CSS_UNBALANCED_BLOCK', 'error', f.path, 'root', 'CSS has ' + opens + ' opening and ' + closes + ' closing braces.', 'Fix the generated CSS block structure.');
+      const bad = /(?:\[object Object\]|\bundefined\b|\bNaN\b|font-weight\s*:\s*(?:Regular|Bold|Medium)\b)/.exec(f.content);
+      if (bad) add('CSS_INVALID_VALUE', 'error', f.path, at(f.content, bad.index), 'Invalid CSS value "' + bad[0] + '".', 'Use a resolved, standards-based CSS value.');
+    }
+  });
+  const schema = (path, predicate, message) => { if (Object.prototype.hasOwnProperty.call(parsed, path) && !predicate(parsed[path])) add('JSON_SCHEMA_INVALID', 'error', path, 'root', message, 'Regenerate the file with the required schema.'); };
+  schema('manifest.json', x => x && !Array.isArray(x) && x.entities && !Array.isArray(x.entities), 'manifest.json requires an entities object.');
+  schema('components/index.json', x => x && typeof x.schemaVersion === 'string' && Array.isArray(x.components) && Array.isArray(x.failed) && (!Object.prototype.hasOwnProperty.call(x, 'patterns') || x.patterns && Array.isArray(x.patterns.patterns) && x.patterns.stats) && (!Object.prototype.hasOwnProperty.call(x, 'references') || x.references && Array.isArray(x.references.entries) && x.references.stats), 'Component index requires schemaVersion, components and failed; patterns and references, when present, require stats and rows.');
+  schema('validation-report.json', x => x && Array.isArray(x.issues) && Array.isArray(x.dims), 'Validation report requires issues and dims arrays.');
+  schema('metadata.json', x => x && typeof x.schemaVersion === 'string' && typeof x.generatedAt === 'string', 'metadata.json requires schemaVersion and generatedAt.');
+  schema('metadata/token-map.json', x => x && Array.isArray(x.tokens) && Array.isArray(x.collections) && x.stats && x.stats.modeValues, 'token-map.json requires stats, collections and tokens.');
+  schema('icons.json', Array.isArray, 'icons.json must contain an array.');
+  schema('rules/validation-rules.json', Array.isArray, 'validation-rules.json must contain an array.');
+  const defined = new Set(), globalCss = byPath.get('tokens.css');
+  files.forEach(f => { if (!f.binary && typeof f.content === 'string' && /\.(?:css|html)$/i.test(f.path)) { const re = /(--[\w-]+)\s*:/g; let m; while ((m = re.exec(f.content))) defined.add(m[1]); } });
+  files.forEach(f => { if (!f.binary && typeof f.content === 'string' && /\.(?:css|html)$/i.test(f.path)) { const re = /var\(\s*(--[\w-]+)/g; let m; while ((m = re.exec(f.content))) if (!defined.has(m[1])) add('CSS_TOKEN_UNDEFINED', 'error', f.path, at(f.content, m.index), 'Variable ' + m[1] + ' is not defined in the package.', 'Define the variable or use an existing token.'); } });
+  const man = parsed['manifest.json'];
+  if (man && man.entities && !Array.isArray(man.entities)) {
+    const entries = Object.entries(man.entities), tokenEntries = entries.filter(([, e]) => e.source && e.source.type === 'figma_variable'), componentEntries = entries.filter(([, e]) => e.source && /^figma_component/.test(e.source.type));
+    if (tokenEntries.length !== M.tokens.length) add('MANIFEST_COUNT_MISMATCH', 'error', 'manifest.json', 'entities', tokenEntries.length + ' token entities do not match ' + M.tokens.length + ' model tokens.', 'Generate manifest statistics from the shared model.');
+    if (componentEntries.length !== M.components.length) add('MANIFEST_COUNT_MISMATCH', 'error', 'manifest.json', 'entities', componentEntries.length + ' component entities do not match ' + M.components.length + ' model components.', 'Generate manifest statistics from the shared model.');
+    entries.forEach(([id, e]) => {
+      const out = e.output || {};
+      if (out.cssVar) { if (!globalCss || !defined.has(out.cssVar)) add('MANIFEST_TOKEN_MISSING', 'error', 'manifest.json', 'entities.' + id + '.output.cssVar', out.cssVar + ' is not defined in tokens.css.', 'Use the CSS name generated for this token.'); const md = byPath.get('tokens.md'); if (md && !md.content.includes('`' + out.cssVar + '`')) add('TOKEN_DOCUMENTATION_MISMATCH', 'error', 'tokens.md', 'entities.' + id, out.cssVar + ' is missing from tokens.md.', 'Generate token documentation from the same model.'); }
+      if (out.mdPath) checkRef('manifest.json', out.mdPath, 0, true);
+      if (out.html) checkRef('manifest.json', out.html, 0, true);
+    });
+  }
+  const tokenMap = parsed['metadata/token-map.json'];
+  if (tokenMap && Array.isArray(tokenMap.tokens)) {
+    if (tokenMap.tokens.length !== M.tokens.length) add('TOKEN_MAP_COUNT_MISMATCH', 'error', 'metadata/token-map.json', 'tokens', tokenMap.tokens.length + ' token rows do not match ' + M.tokens.length + ' model tokens.', 'Generate token-map.json from the shared model.');
+    tokenMap.tokens.forEach(t => { if (t.cssEmitted && (!globalCss || !defined.has(t.cssVar))) add('TOKEN_MAP_CSS_MISMATCH', 'error', 'metadata/token-map.json', 'tokens.' + t.id + '.cssVar', (t.cssVar || '(missing)') + ' is marked emitted but is absent from tokens.css.', 'Use the CSS name generated for this token.'); });
+    if (man && man.stats && man.stats.tokens && JSON.stringify(man.stats.tokens) !== JSON.stringify(tokenMap.stats)) add('TOKEN_STATS_MISMATCH', 'error', 'manifest.json', 'stats.tokens', 'Manifest token statistics differ from token-map.json.', 'Generate both statistics objects from one calculation.');
+  }
+  const index = parsed['components/index.json'];
+  if (index && Array.isArray(index.components)) {
+    index.components.forEach(c => { if (c.file) checkRef('', c.file, 0, true); (c.usedIn || []).forEach(u => checkRef('', 'reference/' + u, 0, true)); });
+    if (index.coverage && (index.coverage.exportedVariants !== index.components.length || index.coverage.failedVariants !== index.failed.length)) add('COMPONENT_COVERAGE_MISMATCH', 'error', 'components/index.json', 'coverage', 'Component coverage counts do not match the exported and failed rows.', 'Calculate coverage from the shared extraction results.');
+    const graph = index.graph;
+    if (graph && Array.isArray(graph.families)) {
+      const local = new Set(M.components.map(c => c.figmaId));
+      if (graph.families.length !== M.components.length) add('COMPONENT_GRAPH_COUNT_MISMATCH', 'error', 'components/index.json', 'graph.families', 'Component graph does not cover every extracted component family.', 'Build graph families from the shared component model.');
+      graph.families.forEach(f => {
+        (f.dependencies || []).forEach(d => { if (d.status === 'resolved' && !local.has(d.id)) add('COMPONENT_GRAPH_DEPENDENCY_INVALID', 'error', 'components/index.json', 'graph.families.' + f.id + '.dependencies', 'Resolved dependency ' + d.id + ' is absent from the component model.', 'Resolve dependencies by their stable Figma IDs.'); });
+        (f.instances || []).forEach(i => { if (i.file) checkRef('', i.file, 0, true); });
+      });
+      if (graph.stats && (graph.stats.exportedVariants !== index.components.length || graph.stats.failedVariants !== index.failed.length)) add('COMPONENT_GRAPH_STATS_MISMATCH', 'error', 'components/index.json', 'graph.stats', 'Component graph statistics disagree with the component index.', 'Calculate graph and index coverage from the same rows.');
+    }
+    const observed = index.patterns;
+    if (observed && Array.isArray(observed.patterns)) {
+      const expected = patternData(M), prints = x => x.map(p => p.fingerprint).sort();
+      if (JSON.stringify(observed.stats) !== JSON.stringify(expected.stats)) add('PATTERN_STATS_MISMATCH', 'error', 'components/index.json', 'patterns.stats', 'Observed pattern counts differ from the grouped reference evidence.', 'Group references by normalized structure before calculating pattern counts.');
+      if (JSON.stringify(prints(observed.patterns)) !== JSON.stringify(prints(expected.patterns))) add('PATTERN_FINGERPRINT_MISMATCH', 'error', 'components/index.json', 'patterns.patterns', 'Pattern fingerprints differ from the normalized reference structures.', 'Regenerate fingerprints from the shared structure normalization.');
+      observed.patterns.forEach(p => (p.occurrences || []).forEach(o => {
+        const source = (M.refs || []).find(r => r.id === o.referenceId);
+        if (!source || o.file !== 'reference/' + source.file) add('PATTERN_EVIDENCE_INVALID', 'error', 'components/index.json', 'patterns.patterns.' + p.id + '.occurrences', 'Pattern evidence does not match a source reference and its HTML file.', 'Link observations to the exact exported reference.');
+        if (o.file) checkRef('', o.file, 0, true);
+      }));
+      if (man && man.stats && man.stats.patterns && JSON.stringify(man.stats.patterns) !== JSON.stringify(observed.stats)) add('PATTERN_STATS_MISMATCH', 'error', 'manifest.json', 'stats.patterns', 'Manifest pattern statistics differ from the observed pattern index.', 'Generate both statistics objects from the grouped reference data.');
+      const refIndex = index.references;
+      if (refIndex && Array.isArray(refIndex.entries)) {
+        const expectedRefs = referenceIndexData(M, expected), patternIds = new Set(observed.patterns.map(p => p.id));
+        if (JSON.stringify(refIndex.stats) !== JSON.stringify(expectedRefs.stats)) add('REFERENCE_INDEX_STATS_MISMATCH', 'error', 'components/index.json', 'references.stats', 'Reference index statistics differ from the source references and links.', 'Calculate reference counts after building the exact entries.');
+        if (JSON.stringify(refIndex.entries) !== JSON.stringify(expectedRefs.entries)) add('REFERENCE_INDEX_ENTRY_INVALID', 'error', 'components/index.json', 'references.entries', 'Reference index entries differ from the shared reference and pattern data.', 'Regenerate contextual fields from the shared model.');
+        refIndex.entries.forEach(e => {
+          const source = (M.refs || []).find(r => r.id === e.id);
+          if (!source || e.file !== 'reference/' + source.file) add('REFERENCE_INDEX_ENTRY_INVALID', 'error', 'components/index.json', 'references.entries.' + e.id, 'Reference entry does not match its source frame and HTML file.', 'Link the entry to the exact exported reference.');
+          if (e.file) checkRef('', e.file, 0, true);
+          (e.patterns || []).forEach(p => { if (!patternIds.has(p.id)) add('REFERENCE_INDEX_PATTERN_INVALID', 'error', 'components/index.json', 'references.entries.' + e.id + '.patterns', 'Reference entry points to missing pattern ' + p.id + '.', 'Use pattern IDs from the observed pattern index.'); });
+          (e.links || []).forEach(l => { if (l.status === 'resolved' && l.file) checkRef('', l.file, 0, true); if (l.status === 'resolved' && !l.file || l.status !== 'resolved' && l.file) add('REFERENCE_INDEX_LINK_INVALID', 'error', 'components/index.json', 'references.entries.' + e.id + '.links', 'Link status and target file disagree.', 'Resolved links require an existing file; unresolved links must not claim one.'); });
+        });
+        if (man && man.stats && man.stats.references && JSON.stringify(man.stats.references) !== JSON.stringify(refIndex.stats)) add('REFERENCE_INDEX_STATS_MISMATCH', 'error', 'manifest.json', 'stats.references', 'Manifest reference statistics differ from the reference index.', 'Generate both statistics objects from the same reference entries.');
+      }
+    }
+  }
+  const names = {}; (M.collections || []).forEach(c => { names[c.name] = (names[c.name] || 0) + 1; });
+  Object.keys(names).filter(n => names[n] > 1).forEach(n => add('COLLECTION_DUPLICATE_NAME', 'warning', 'tokens.css', 'collection ' + n, 'Collection name "' + n + '" is ambiguous.', 'Rename duplicate collections in Figma.'));
+  (M.collections || []).forEach(c => {
+    const list = M.tokens.filter(t => t.collection === c.name), modes = c.modes || [];
+    modes.slice(1).forEach(mode => {
+      const differs = list.some(t => { const first = t.modes[modes[0]] || Object.values(t.modes)[0], cur = t.modes[mode]; return first && cur && first.status === 'resolved' && cur.status === 'resolved' && (first.value !== cur.value || (first.chain || []).join('|') !== (cur.chain || []).join('|')); });
+      if (differs && globalCss && !globalCss.content.includes('[data-theme="' + styleSlug(mode) + '"]')) add('THEME_MODE_MISSING', 'error', 'tokens.css', 'mode ' + mode, 'Mode "' + mode + '" has different values but no theme selector.', 'Emit an explicit mapping for every source mode.');
+    });
+  });
+  return findings;
+}
 function lintPackage(files, M) {
   const by = p => (files.find(f => f.path === p) || { content: '' }).content, md = files.filter(f => /\.md$/.test(f.path)), mdAll = md.map(f => f.content).join('\n'), tokensTotal = md.reduce((a, f) => a + estTokens(f.content), 0);
-  const comp = by('components.md'), design = by('design.md'), css = by('tokens.css'), checks = [];
+  const comp = by('components.md'), design = by('design.md'), css = by('tokens.css'), checks = [], findings = packageLintFindings(files, M);
   const add = (id, label, w, pass, detail, partial) => checks.push({ id, label, w, got: pass ? w : (partial || 0), pass, detail });
-  add('size', 'Total Markdown size is small enough for an AI context', 15, tokensTotal <= 30000, '≈ ' + tokensTotal + ' tokens (limit 30000)', tokensTotal <= 60000 ? 7 : 0);
+  add('size', 'Total Markdown size is small enough for an AI context', 10, tokensTotal <= 30000, '≈ ' + tokensTotal + ' tokens (limit 30000)', tokensTotal <= 60000 ? 5 : 0);
   const iconRows = (comp.split('## Icons')[1] || '').split('\n').filter(l => /^\| /.test(l)).length - 2;
   add('icons', 'Icon library is summarized, not dumped', 10, iconRows <= 80, Math.max(iconRows, 0) + ' icon rows (limit 80)');
   const heads = comp.match(/^## .+$/gm) || [], dup = heads.filter((h, i) => heads.indexOf(h) !== i), ids = (comp.match(/^`component\.[^`]+`/gm) || []), dupId = ids.filter((h, i) => ids.indexOf(h) !== i);
@@ -569,7 +883,7 @@ function lintPackage(files, M) {
   const noise = (design + by('tokens.md') + comp + css).match(/\d+\.\d{4,}/g) || [];
   add('floats', 'No floating-point noise in numbers', 5, !noise.length, noise.length + ' value(s)');
   let lit = 0; (comp.match(/```css[\s\S]*?```/g) || []).forEach(b => b.split('\n').forEach(l => { const m = l.match(/^\s+([a-z-]+):\s*(.*)$/); if (!m || /^(width|height|min-|max-)/.test(m[1])) return; const v = m[2].replace(/\/\*.*?\*\//g, '').replace(/width:\s*[\d.]+px;?\s*height:\s*[\d.]+px;?/, ''); if (/#[0-9a-fA-F]{3,8}\b/.test(v) || /\b\d*\.?\d+px\b/.test(v)) lit++; }));
-  add('literals', 'Spec CSS has no literal colors or spacing (rules match the data)', 15, lit === 0, lit + ' literal line(s)');
+  add('literals', 'Spec CSS has no literal colors or spacing (rules match the data)', 10, lit === 0, lit + ' literal line(s)');
   const unguided = (comp.match(/^- ".*"(?! →).*$/gm) || []).length;
   add('text', 'Every text layer has a mapping, a suggestion or an explicit report', 10, unguided === 0, unguided + ' text layer(s) without guidance');
   const boiler = (mdAll.match(/not available from the selected sources/gi) || []).length;
@@ -580,21 +894,22 @@ function lintPackage(files, M) {
   add('order', 'design.md starts with a read order', 5, /### Read order/.test(design), 'read order');
   const mentioned = (design.match(/- Package: ([^\n]+)/) || ['', ''])[1].split(',').map(x => x.trim().replace(/ \(this file\)| \(HTML\)/g, '').replace(/\/ .*$/, '/')).filter(Boolean), missing = mentioned.filter(m => !files.some(f => f.path === m || f.path.indexOf(m) === 0));
   add('exists', 'Every file named in the package line exists', 5, missing.length === 0, missing.length ? 'missing: ' + missing.join(', ') : 'ok');
+  add('integrity', 'JSON, internal references, CSS variables and manifests are consistent', 10, findings.length === 0, findings.length + ' finding(s)');
   const multi = (M.collections || []).some(c => c.modes.length > 1), contr = !multi && /Support every theme mode/.test(mdAll + css);
   add('contra', 'No contradictions (themes, rules and data agree)', 5, !contr, contr ? 'theme rule without modes' : 'ok');
-  const rows = (by('validation.md').split('## Findings')[1] || '').split('\n').filter(l => /^\| /.test(l)).length - 2;
-  add('valid', 'Validation findings are aggregated', 5, rows <= 25, Math.max(rows, 0) + ' rows (limit 25)');
+  const rows = (by('validation.md').split('## Findings')[1] || '').split('\n').filter(l => /^\| /.test(l)).length - 2, sourceIssues = (M.validation && M.validation.issues) || [];
+  add('valid', 'Validation findings are aggregated and self-check reflects source findings', 5, rows <= 25 && !sourceIssues.some(i => i.severity === 'error' || i.severity === 'warning'), Math.max(rows, 0) + ' grouped row(s), ' + sourceIssues.filter(i => i.severity === 'error' || i.severity === 'warning').length + ' error/warning finding(s)');
   const total = checks.reduce((a, c) => a + c.w, 0), got = checks.reduce((a, c) => a + c.got, 0);
-  return { score: Math.round(got / total * 100), checks };
+  return { score: Math.round(got / total * 100), checks, findings };
 }
 function gen(M, mode, rejected, rejInf) {
   const X = enrichModel(M), OS = M.sections, on = k => OS[k] !== false, V = M.validation, rej = new Set(rejected || []), minimal = mode === 'minimal', files = [];
   const toks = M.tokens.map(t => t.categorySource === 'name-heuristic' && rej.has(t.category) ? Object.assign({}, t, { category: 'other' }) : t);
   const cats = {}; toks.forEach(t => (cats[t.category] = cats[t.category] || []).push(t));
   const catNames = Object.keys(cats).sort(), nStyles = M.styles.text.length + M.styles.paint.length + M.styles.effect.length;
-  const TC = tokensCss(M, toks), TCN = TC.names, allDep = toks.length > 0 && toks.every(t => t.origin === 'dependency');
+  const TC = tokensCss(M, toks), TCN = TC.names, TM = tokenMapData(M, toks, TCN, TC.content), TS = TM.stats, tmById = Object.fromEntries(TM.tokens.map(t => [t.id, t])), allDep = toks.length > 0 && toks.every(t => t.origin === 'dependency');
   const usedStr = t => { const u = t.usedBy || []; return u.length ? capList(u, 4) : '—'; };
-  const catTbl = c => tbl(['Figma name', 'CSS variable', 'Role', 'Value', 'Alias', 'Used by'], cats[c].map(t => [t.name + (!allDep && t.origin === 'dependency' ? ' (dependency)' : ''), '`' + TCN.byFigma[t.figmaId] + '`', t.role, modeVal(t), (Object.values(t.modes)[0].chain || []).join(' → ') || '—', usedStr(t)]));
+  const catTbl = c => tbl(['Figma name', 'CSS variable', 'Role', 'Value', 'Alias', 'Used by'], cats[c].map(t => [t.name + (!allDep && t.origin === 'dependency' ? ' (dependency)' : ''), tmById[t.id].cssEmitted ? '`' + TCN.byFigma[t.figmaId] + '`' : '— (not emitted)', t.role, modeVal(t), (Object.values(t.modes)[0].chain || []).join(' → ') || '—', usedStr(t)]));
   const anyLib = M.styles.text.some(s => s.origin === 'library');
   const textClassTbl = tbl(['Figma text style', 'CSS class', 'Font', 'Size', 'Weight', 'Line height', 'Letter spacing'].concat(anyLib ? ['Origin'] : []), M.styles.text.map(s => [s.name, '`.text-' + styleSlug(s.name) + '`', s.family, s.size + 'px', fontWeightOf(s.fstyle), lhCss(s.lineHeight), lsCss(s.letterSpacing)].concat(anyLib ? [s.origin || 'local'] : [])));
   const themes = M.collections.filter(c => c.modes.length > 1);
@@ -603,7 +918,7 @@ function gen(M, mode, rejected, rejInf) {
 
   // ---- tokens.md
   if ((on('tokens') && (toks.length || M.styles.paint.length || M.styles.effect.length || X.derived.length)) && !minimal) {
-    let t = '# Tokens\n\nValues live in `tokens.css`; this file explains them.\n\n';
+    let t = '# Tokens\n\nValues live in `tokens.css`; this file explains them.\n\n## Accounting\n\n' + tbl(['Measure', 'Count'], [['Source tokens', TS.sourceTokens], ['Tokens with aliases', TS.aliasTokens], ['Mode values', TS.modeValues.total], ['Resolved mode values', TS.modeValues.resolved], ['Unresolved / circular / invalid mode values', TS.modeValues.unresolved + ' / ' + TS.modeValues.circular + ' / ' + TS.modeValues.invalid], ['CSS variables emitted from source tokens', TS.cssVariables], ['Source tokens not emitted', TS.notEmitted], ['Ambiguous shared color values', TS.ambiguousValues]]) + '\nCounts differ by definition: a source token can contain several mode values, and unresolved or unsupported tokens are not emitted as CSS variables.\n\n';
     catNames.forEach(c => { t += '## ' + c + '\n\n' + (cats[c][0].categorySource === 'name-heuristic' ? '_Category inferred from variable names._\n\n' : '') + catTbl(c) + '\n'; });
     if (derivedTbl) t += '## Derived tokens\n\nValues used in the design that have no Figma variable. They are real tokens in tokens.css; use them instead of literals.\n\n' + derivedTbl + '\n';
     if (gapTbl) t += '## Colors used but not tokenized\n\nA design-system gap: these colors appear in components without a variable. The nearest token is used in the Spec CSS.\n\n' + gapTbl + '\n';
@@ -624,7 +939,7 @@ function gen(M, mode, rejected, rejInf) {
     const page = r.file || r.name + '.html';
     [u.id, u.familyId].forEach(k => { if (k) ((compUsed[k] = compUsed[k] || new Set()).add(page)); });
   }));
-  if (!minimal && CH.ok.length) {
+  if (!minimal && (CH.ok.length || CH.failed.length || (M.refs || []).length)) {
     const used = {}, rows = [];
     let ccss = '/* Component HTML rendered by ' + (CH.engine || 'the HTML engine') + '. Values come from tokens.css. */\n';
     CH.ok.forEach(c => {
@@ -633,10 +948,11 @@ function gen(M, mode, rejected, rejInf) {
       ccss += '\n/* ' + c.name + ' */\n' + c.css + '\n';
       const doc = '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>' + escH(c.name) + ' — component</title>\n<link rel="stylesheet" href="../tokens.css">\n<link rel="stylesheet" href="../components.css">\n</head>\n<body style="margin:24px;background:#fff">\n' + c.html + '\n</body>\n</html>\n';
       files.push({ path: file, content: doc, tier: 1 });
-      rows.push({ id: c.id, name: c.name, figmaId: c.figmaId, className: c.className, file, width: c.w, height: c.h, nodes: c.nodes, vars: c.vars, metadata: c.meta || null, usedIn: Array.from(compUsed[c.figmaId] || (c.meta && compUsed[c.meta.familyId]) || []).sort() });
+      rows.push({ id: c.id, name: c.name, figmaId: c.figmaId, nodeId: c.nodeId || c.figmaId, familyId: c.meta && c.meta.familyId || c.variantOf || c.figmaId, variantOf: c.variantOf || null, isDefault: c.isDefault !== false, className: c.className, file, width: c.w, height: c.h, nodes: c.nodes, vars: c.vars, metadata: c.meta || null, usedIn: Array.from(compUsed[c.figmaId] || (c.meta && compUsed[c.meta.familyId]) || []).sort() });
     });
-    files.push({ path: 'components.css', content: ccss, tier: 0 });
-    files.push({ path: 'components/index.json', content: JSON.stringify({ schemaVersion: '1.0.0', engine: CH.engine || null, components: rows, failed: CH.failed }, null, 2), tier: 1 });
+    const graph = componentGraphData(M, rows, CH.failed);
+    if (CH.ok.length) files.push({ path: 'components.css', content: ccss, tier: 0 });
+    files.push({ path: 'components/index.json', content: JSON.stringify({ schemaVersion: '1.0.0', engine: CH.engine || null, coverage: CH.coverage || { sourceFamilies: M.components.length, sourceVariants: M.components.reduce((n, c) => n + (c.variants || 1), 0), exportedFamilies: graph.families.filter(f => f.extraction.exportedVariants > 0).length, exportedVariants: rows.length, failedVariants: CH.failed.length }, components: rows, failed: CH.failed, graph, patterns: X.patterns, references: X.references }, null, 2), tier: 1 });
   }
   if (toks.length || nStyles) files.push({ path: 'ai-control.md', content: aiControlMd(M.adherence === undefined ? 3 : M.adherence), tier: 0 });
   // ---- validation.md (self-check added after lint)
@@ -651,7 +967,7 @@ function gen(M, mode, rejected, rejInf) {
   const present = n => files.some(f => f.path === n) || n === 'design.md' || n === 'validation.md';
   const hasRefs = M.refs && M.refs.length, fileOf = n => files.find(f => f.path === n);
   const readOrder = [['SKILL.md', 'Agent entrypoint: read order, authority, inventory', sizeOf(fileOf('SKILL.md'))], ['design.md', 'Rules, typography, overview', 'this file'], ['tokens.css', 'ALL values: variables, text classes, shadows (single source of truth)', sizeOf(fileOf('tokens.css'))], ['ai-control.md', 'Creative freedom level (read before every task)', sizeOf(fileOf('ai-control.md'))],
-    ['components.md', 'Component list, sizes and Spec CSS; open only the component you need', sizeOf(fileOf('components.md'))], ['tokens.md', 'Explains tokens: names, usage, gaps', sizeOf(fileOf('tokens.md'))], ['content.md', 'Product, users, screens (context only)', sizeOf(fileOf('content.md'))],
+    ['components.md', 'Component list, sizes and Spec CSS; open only the component you need', sizeOf(fileOf('components.md'))], ['components/index.json', 'Component graph, observed patterns and contextual reference index', sizeOf(fileOf('components/index.json'))], ['tokens.md', 'Explains tokens: names, usage, gaps', sizeOf(fileOf('tokens.md'))], ['content.md', 'Product, users, screens (context only)', sizeOf(fileOf('content.md'))],
     ['validation.md', 'Design-system health and what to fix', '≈ ' + estTokens(validationBase) + ' tokens']].filter(r => present(r[0]));
   const pkgLine = pkgNames.filter(present).join(', ') + (hasRefs ? ', reference/ (one HTML per frame)' : '') + (M.componentHtml && M.componentHtml.ok.length ? ', components/ (HTML)' : '');
   let d = '# Design System\n\n## Overview\n\n- Source: Figma file "' + M.fileName + '"\n- Scope: ' + (M.pages.join(', ') || 'none') + '\n- Entities: ' + toks.length + ' tokens' + (X.derived.length ? ' (+' + X.derived.length + ' derived)' : '') + ', ' + M.components.length + ' components, ' + (X.icons ? X.icons.total + ' icons (' + (X.icons.pack || 'pack not provided') + '), ' : '') + nStyles + ' styles\n' +
@@ -659,27 +975,31 @@ function gen(M, mode, rejected, rejInf) {
   d += '\n### Read order\n\n' + tbl(['File', 'Purpose', 'Size'], readOrder.map(r => ['`' + r[0] + '`', r[1], r[2]])) + RULES_PLACEHOLDER;
   d = d.replace(RULES_PLACEHOLDER, rulesMd(M));
   const sec = {};
-  sec.projectContext = ctxMd(M.context, rejInf, X);
+  sec.projectContext = ctxMd(M.context, rejInf, X, M.contentPack === true);
   sec.tokens = '## Tokens\n\nSource of truth for values: `tokens.css` (exact Figma names in comments).\n\n' + (!toks.length ? NA : minimal ? catNames.map(c => '### ' + c + '\n\n' + catTbl(c)).join('\n') : tbl(['Category', 'Count'], catNames.map(c => [c, cats[c].length])) + (X.derived.length ? '\nDerived tokens: ' + X.derived.length + ' (spacing, radius, border widths used in the design)\n' : '') + (nStyles ? '\nStyles: ' + M.styles.text.length + ' text, ' + M.styles.paint.length + ' paint, ' + M.styles.effect.length + ' effect\n' : '') + '\nDetails: tokens.md\n');
   sec.themes = '## Themes\n\n' + (themes.length ? tbl(['Collection', 'Modes'], themes.map(c => [c.name, c.modes.join(', ')])) : 'Single mode. No theme switching.\n');
   sec.typography = '## Typography\n\nUse only these text styles (classes are defined in tokens.css).\n\n' + (!M.styles.text.length ? NA : textClassTbl);
   sec.components = '## Components\n\n' + (M.components.length ? tbl(['Component', 'Kind', 'Variants', 'States'], M.components.map(c => [minimal ? c.name : '[' + c.name + '](components.md#' + anchorOf(c.name) + ')', c.kind, c.variants, c.states.join(', ') || '—'])) + (X.icons ? '\nIcons: ' + X.icons.total + ' (pack: ' + (X.icons.pack || 'not provided') + (minimal ? ')' : '), see components.md') + '\n' : '') : NA);
+  sec.patterns = '## Patterns\n\n' + (X.patterns.stats.patterns ? 'Observed HTML structures: ' + X.patterns.stats.patterns + ' across ' + X.patterns.stats.references + ' reference(s); ' + X.patterns.stats.repeatedPatterns + ' structure(s) repeat. Fingerprints exclude text, generated classes, styles, node IDs and variant values. Evidence, exceptions and normalized trees are in components/index.json. These observations are not inferred semantic rules.\n' : NA);
   sec.validation = '## Validation\n\n- Health: ' + (V.overall === null ? 'n/a' : V.overall + '%') + ' · Errors ' + V.errors + ' · Warnings ' + V.warnings + ' · Info ' + V.info + (minimal ? '' : ' (details: validation.md)') + '\n';
-  const order = ['projectContext', 'tokens', 'themes', 'typography', 'components'], out = order.filter(k => (k === 'projectContext' ? on('projectContext') : on(k))).map(k => sec[k]);
+  const order = ['projectContext', 'tokens', 'themes', 'typography', 'components', 'patterns'], out = order.filter(k => (k === 'projectContext' ? on('projectContext') : on(k))).map(k => sec[k]);
   const absent = UNS.filter(u => on(u[0])).map(u => u[1]);
   d += '\n' + out.join('\n') + (absent.length ? '\n## Other sections\n\n' + absent.join(', ') + ': not available from the selected sources.\n' : '') + (on('validation') ? '\n' + sec.validation : '');
   const designFile = { path: 'design.md', content: d, tier: 0 };
+  files.push({ path: 'metadata/token-map.json', content: JSON.stringify(TM, null, 2), tier: 2 });
+  const man = { entities: {}, stats: { tokens: TS, patterns: X.patterns.stats, references: X.references.stats } };
+  toks.forEach(t => man.entities[t.id] = { source: { type: 'figma_variable', id: t.figmaId }, output: { mdPath: 'tokens.md#' + slug(t.category), cssVar: tmById[t.id].cssEmitted ? TCN.byFigma[t.figmaId] : null, status: tmById[t.id].status } });
+  M.components.forEach(c => man.entities[c.id] = { source: { type: 'figma_' + c.kind.replace('-', '_'), id: c.figmaId }, output: { mdPath: 'components.md#' + anchorOf(c.name), html: compFiles[c.figmaId] || null } });
+  const manifestFile = { path: 'manifest.json', content: JSON.stringify(man, null, 2), tier: 2 };
   // ---- lint -> validation.md
-  const prelim = [designFile].concat(files, [{ path: 'validation.md', content: validationBase, tier: 1 }]);
+  const prelim = [designFile].concat(files, [{ path: 'validation.md', content: validationBase, tier: 1 }, manifestFile]);
   const lint = lintPackage(prelim, M); M.lint = lint;
-  const validation = validationBase + '\n## Package self-check: ' + lint.score + ' / 100\n\n' + tbl(['Check', 'Result', 'Detail'], lint.checks.map(c => [c.label, c.pass ? 'pass' : 'FAIL', c.detail]));
+  const packageFindings = lint.findings.length ? '\n## Package findings\n\n' + tbl(['Severity', 'Code', 'File', 'Location', 'Finding'], lint.findings.map(i => [i.severity, i.code, i.file, i.location, i.message])) : '';
+  const validation = validationBase + packageFindings + '\n## Package self-check: ' + lint.score + ' / 100\n\n' + tbl(['Check', 'Result', 'Detail'], lint.checks.map(c => [c.label, c.pass ? 'pass' : 'FAIL', c.detail]));
   if (on('validation')) files.push({ path: 'validation.md', content: validation, tier: 1 });
   files.unshift(designFile);
   files.push({ path: 'metadata.json', content: JSON.stringify({ schemaVersion: '1.0.0', generatorVersion: '0.10.0', generatedAt: new Date().toISOString(), source: 'figma', sourceFileName: M.fileName, scopePages: M.pages, mode, packageQuality: lint.score }, null, 2), tier: 2 });
-  const man = { entities: {} };
-  toks.forEach(t => man.entities[t.id] = { source: { type: 'figma_variable', id: t.figmaId }, output: { mdPath: 'tokens.md#' + slug(t.category), cssVar: TCN.byFigma[t.figmaId] } });
-  M.components.forEach(c => man.entities[c.id] = { source: { type: 'figma_' + c.kind.replace('-', '_'), id: c.figmaId }, output: { mdPath: 'components.md#' + anchorOf(c.name), html: compFiles[c.figmaId] || null } });
-  files.push({ path: 'manifest.json', content: JSON.stringify(man, null, 2), tier: 2 }, { path: 'validation-report.json', content: JSON.stringify(V, null, 2), tier: 2 });
+  files.push(manifestFile, { path: 'validation-report.json', content: JSON.stringify(Object.assign({}, V, { packageQuality: lint.score, packageFindings: lint.findings }), null, 2), tier: 2 });
   if ((M.icons || []).length) files.push({ path: 'icons.json', content: JSON.stringify((M.icons || []).map(i => ({ name: i.name, named: i.named, kind: i.kind, size: i.w + 'x' + i.h, confidence: i.confidence, usedIn: i.usedIn, figmaId: i.figmaId })), null, 2), tier: 2 });
   files.push({ path: 'rules/validation-rules.json', content: JSON.stringify([...new Set(V.issues.map(i => i.code))].sort().map(c => ({ ruleId: c, source: 'derived', deterministic: true })), null, 2), tier: 3 });
   return files.filter(f => f.tier <= { minimal: 0, standard: 1, full: 2, agent: 3 }[mode]);
@@ -1057,10 +1377,23 @@ function engineInfo() {
   const E = engineModule();
   return E ? { available: true, id: E.id, version: E.version, capabilities: E.capabilities || ['frame'] } : { available: false };
 }
+function colorValueCandidates(tokens) {
+  const cand = {};
+  tokens.forEach(t => { const r = Object.values(t.modes)[0]; if (t.type === 'COLOR' && r && r.status === 'resolved') (cand[String(r.value).toUpperCase()] = cand[String(r.value).toUpperCase()] || []).push(t); });
+  return cand;
+}
+function valueMatchIssues(tokens) {
+  const cand = colorValueCandidates(tokens), out = [];
+  Object.keys(cand).sort().forEach(value => {
+    const list = cand[value];
+    if (list.length > 1) out.push({ code: 'TOKEN_VALUE_MATCH_AMBIGUOUS', severity: 'warning', entityId: value, message: list.length + ' tokens share value ' + value + ': ' + list.map(t => t.name).sort().join(', ') + '. Unbound value matching is disabled for this value.', recovery: 'Bind the property explicitly to the intended variable.' });
+  });
+  return out;
+}
 function refTokenMap(tokens, styles) {
-  const N = cssNameMap(tokens), variables = {}, st = {}, cand = {}, colors = {};
-  tokens.forEach(t => { variables[t.figmaId] = N.byFigma[t.figmaId]; const r = Object.values(t.modes)[0]; if (t.type === 'COLOR' && r && r.status === 'resolved') (cand[String(r.value).toUpperCase()] = cand[String(r.value).toUpperCase()] || []).push(t); });
-  Object.keys(cand).forEach(k => { const L = cand[k], sem = L.filter(t => t.role === 'semantic'); const pick = L.length === 1 ? L[0] : sem.length === 1 ? sem[0] : null; if (pick) colors[k] = N.byFigma[pick.figmaId]; });
+  const N = cssNameMap(tokens), variables = {}, st = {}, cand = colorValueCandidates(tokens), colors = {};
+  tokens.forEach(t => { variables[t.figmaId] = N.byFigma[t.figmaId]; });
+  Object.keys(cand).forEach(k => { const L = cand[k]; if (L.length === 1) colors[k] = N.byFigma[L[0].figmaId]; });
   ((styles && styles.paint) || []).forEach(x => { if (x.css) st[x.id] = '--paint-' + styleSlug(x.name); });
   ((styles && styles.effect) || []).forEach(x => { if (x.css) st[x.id] = '--shadow-' + styleSlug(x.name); });
   return { variables, styles: st, colors };
@@ -1070,7 +1403,7 @@ async function refFrame(nd, byId, E, tokMap, sel) {
   if (E) {
     try {
       const r = await E.exportFrame(nd, tokMap, { matchColorsByValue: sel.refMatchColors !== false, embedImages: embed });
-      return { id: nd.id, name: nd.name, page: pageOf(nd), w: r.width, h: r.height, nodes: r.nodes, truncated: false, body: r.bodyHtml, css: r.css, files: r.files || [], engine: r.engine + '@' + r.version, rtl: r.rtl, links: r.links, fonts: r.fonts, vars: r.vars, components: r.components || [], notes: [...(r.notes || [])] };
+      return { id: nd.id, name: nd.name, page: pageOf(nd), w: r.width, h: r.height, nodes: r.nodes, truncated: false, body: r.bodyHtml, css: r.css, files: r.files || [], engine: r.engine + '@' + r.version, rtl: r.rtl, links: r.links, fonts: r.fonts, vars: r.vars, components: r.components || [], structure: r.structure || null, notes: [...(r.notes || [])] };
     } catch (e) { engineErr = String((e && e.message) || e); }
   }
   const rec = await frameRef(nd, byId); rec.css = rec.css || ''; rec.files = []; rec.components = [];
@@ -1095,19 +1428,21 @@ const pageOf = n => { let p = n; while (p && p.type !== 'PAGE') p = p.parent; re
 
 async function componentSpec(root) {
   const sp = [], b = root.boundVariables || {}, px = v => typeof v === 'number' ? Math.round(v * 100) / 100 + 'px' : null;
-  const bn = k => { const a = b[k], al = Array.isArray(a) ? a[0] : a; return al && al.id && BYID[al.id] ? BYID[al.id].name : null; };
+  const bi = k => { const a = b[k], al = Array.isArray(a) ? a[0] : a; return al && al.id || null; };
+  const bn = k => { const id = bi(k); return id && BYID[id] ? BYID[id].name : null; };
   const paintOf = arr => Array.isArray(arr) ? arr.find(x => x.visible !== false && x.type === 'SOLID') : null;
-  const pb = p => p && p.boundVariables && p.boundVariables.color && BYID[p.boundVariables.color.id] ? BYID[p.boundVariables.color.id].name : null;
-  sp.push({ prop: 'width', raw: px(root.width), bound: bn('width') }, { prop: 'height', raw: px(root.height), bound: bn('height') });
+  const pbi = p => p && p.boundVariables && p.boundVariables.color && p.boundVariables.color.id || null;
+  const pb = p => { const id = pbi(p); return id && BYID[id] ? BYID[id].name : null; };
+  sp.push({ prop: 'width', raw: px(root.width), bound: bn('width'), boundId: bi('width') }, { prop: 'height', raw: px(root.height), bound: bn('height'), boundId: bi('height') });
   if (root.layoutMode && root.layoutMode !== 'NONE') {
-    sp.push({ prop: 'display', raw: 'flex' }, { prop: 'flex-direction', raw: root.layoutMode === 'HORIZONTAL' ? 'row' : 'column' }, { prop: 'gap', raw: px(root.itemSpacing), bound: bn('itemSpacing') });
-    [['padding-top', 'paddingTop'], ['padding-right', 'paddingRight'], ['padding-bottom', 'paddingBottom'], ['padding-left', 'paddingLeft']].forEach(x => sp.push({ prop: x[0], raw: px(root[x[1]]), bound: bn(x[1]) }));
+    sp.push({ prop: 'display', raw: 'flex' }, { prop: 'flex-direction', raw: root.layoutMode === 'HORIZONTAL' ? 'row' : 'column' }, { prop: 'gap', raw: px(root.itemSpacing), bound: bn('itemSpacing'), boundId: bi('itemSpacing') });
+    [['padding-top', 'paddingTop'], ['padding-right', 'paddingRight'], ['padding-bottom', 'paddingBottom'], ['padding-left', 'paddingLeft']].forEach(x => sp.push({ prop: x[0], raw: px(root[x[1]]), bound: bn(x[1]), boundId: bi(x[1]) }));
   }
   const rad = typeof root.cornerRadius === 'number' ? root.cornerRadius : (typeof root.topLeftRadius === 'number' ? root.topLeftRadius : null);
-  if (rad !== null) sp.push({ prop: 'border-radius', raw: px(rad), bound: bn('topLeftRadius') || bn('cornerRadius') });
-  const f = paintOf(root.fills); if (f) sp.push({ prop: 'background-color', raw: hex({ r: f.color.r, g: f.color.g, b: f.color.b, a: f.opacity }), bound: pb(f) });
+  if (rad !== null) sp.push({ prop: 'border-radius', raw: px(rad), bound: bn('topLeftRadius') || bn('cornerRadius'), boundId: bi('topLeftRadius') || bi('cornerRadius') });
+  const f = paintOf(root.fills); if (f) sp.push({ prop: 'background-color', raw: hex({ r: f.color.r, g: f.color.g, b: f.color.b, a: f.opacity }), bound: pb(f), boundId: pbi(f) });
   const st = paintOf(root.strokes);
-  if (st && typeof root.strokeWeight === 'number' && root.strokeWeight > 0) sp.push({ prop: 'border-width', raw: px(root.strokeWeight), bound: bn('strokeWeight') }, { prop: 'border-color', raw: hex({ r: st.color.r, g: st.color.g, b: st.color.b, a: st.opacity }), bound: pb(st) });
+  if (st && typeof root.strokeWeight === 'number' && root.strokeWeight > 0) sp.push({ prop: 'border-width', raw: px(root.strokeWeight), bound: bn('strokeWeight'), boundId: bi('strokeWeight') }, { prop: 'border-color', raw: hex({ r: st.color.r, g: st.color.g, b: st.color.b, a: st.opacity }), bound: pb(st), boundId: pbi(st) });
   const texts = root.findAll ? root.findAll(x => x.type === 'TEXT').slice(0, 4) : [];
   for (const t of texts) {
     let sn = null;
@@ -1116,6 +1451,11 @@ async function componentSpec(root) {
     sp.push({ prop: 'text', node: t.name, textStyle: sn, size: typeof t.fontSize === 'number' ? Math.round(t.fontSize * 100) / 100 : null, weight: wt, lh: lhv, raw: typeof t.fontSize === 'number' ? Math.round(t.fontSize * 100) / 100 + 'px' : null });
   }
   return sp.filter(x => x.raw || x.bound || x.textStyle);
+}
+function defaultComponentVariant(n) {
+  if (!n || n.type !== 'COMPONENT_SET') return n;
+  const variants = n.children.filter(x => x.type === 'COMPONENT'), defs = n.componentPropertyDefinitions || {}, axes = Object.keys(defs).filter(k => defs[k].type === 'VARIANT');
+  return variants.find(x => axes.length && axes.every(k => String((x.variantProperties || {})[k]) === String(defs[k].defaultValue))) || variants[0] || n;
 }
 async function extractComponent(n, pageName) {
   const isSet = n.type === 'COMPONENT_SET', issues = [];
@@ -1129,13 +1469,13 @@ async function extractComponent(n, pageName) {
     issues.push({ code: 'COMPONENT_SET_HAS_ERRORS', severity: 'warning', entityId: 'component.' + slug(n.name), message: 'Figma reports errors in component set "' + n.name + '"; properties were read from variant names.', recovery: 'Fix duplicate or invalid variants in Figma.' });
   }
   const states = []; properties.forEach(p => { if (p.type === 'VARIANT' && /state|status/i.test(p.name) && p.options) p.options.forEach(o => states.push(o)); });
-  const root = isSet ? (n.children[0] || n) : n, ids = new Set(), styleIds = new Set(), nested = {}, nodes = [root].concat(root.findAll(() => true).slice(0, 400));
+  const root = defaultComponentVariant(n), ids = new Set(), styleIds = new Set(), nested = {}, roots = isSet ? n.children.filter(x => x.type === 'COMPONENT') : [root];
+  const nodes = roots.concat(...roots.map(r => r.findAll(() => true)));
   const walk = x => { if (!x || typeof x !== 'object') return; if (Array.isArray(x)) return x.forEach(walk); if (x.type === 'VARIABLE_ALIAS' && x.id) ids.add(x.id); else Object.values(x).forEach(walk); };
-  let inst = 0;
   for (const nd of nodes) {
-    try { walk(nd.boundVariables); } catch (e) { /* mixed values */ }
+    try { walk(nd.boundVariables); walk(nd.fills); walk(nd.strokes); walk(nd.effects); } catch (e) { /* mixed values */ }
     try { ['textStyleId', 'fillStyleId', 'strokeStyleId', 'effectStyleId'].forEach(k => { const v = nd[k]; if (typeof v === 'string' && v) styleIds.add(v); }); } catch (e) { /* mixed */ }
-    if (nd.type === 'INSTANCE' && inst++ < 60) {
+    if (nd.type === 'INSTANCE') {
       const mc = await nd.getMainComponentAsync();
       if (mc) { const t = mc.parent && mc.parent.type === 'COMPONENT_SET' ? mc.parent : mc; if (t.name !== n.name) nested[t.name] = { name: t.name, nodeId: t.id, remote: t.remote === true }; noteIcon(t, n.name); }
     }
@@ -1143,7 +1483,7 @@ async function extractComponent(n, pageName) {
   const iconR = noteIcon(n, null);
   let spec = [], variantDims = [];
   try { spec = await componentSpec(root); } catch (e) { /* ignore */ }
-  if (isSet) variantDims = n.children.slice(0, 30).map(ch => ({ name: ch.name, w: Math.round(ch.width), h: Math.round(ch.height) }));
+  if (isSet) variantDims = n.children.map(ch => ({ name: ch.name, w: Math.round(ch.width), h: Math.round(ch.height) }));
   if (!iconR) { try { await scanSmall(root, n.name); } catch (e) { /* ignore */ } }
   return { issues, comp: { spec, variantDims, icon: !!iconR, id: 'component.' + slug(n.name), figmaId: n.id, name: n.name, kind: isSet ? 'component-set' : 'component', page: pageName, description: n.description || '', origin: 'selection', requiredBy: [],
     variants: isSet ? n.children.length : 1, properties, states, tokens: [], dependencies: Object.keys(nested).sort(), _nested: Object.values(nested), _tokenIds: [...ids], _styleIds: [...styleIds] } };
@@ -1155,11 +1495,11 @@ async function buildDraft(sel, quiet) {
   const allVars = await figma.variables.getLocalVariablesAsync(), cols = await figma.variables.getLocalVariableCollectionsAsync(), byId = {}, colById = {};
   allVars.forEach(v => byId[v.id] = v); cols.forEach(c => colById[c.id] = c);
   const mk = (v, dep) => {
-    const col = colById[v.variableCollectionId], modes = {}, chainIds = [];
-    col.modes.forEach(m => { const r = resolve(v, m.modeId, byId, colById); chainIds.push(...r.ids); delete r.ids; modes[m.name] = r; });
-    const [cat, src] = category(v), first = v.valuesByMode[col.defaultModeId];
-    return { id: 'token.' + v.name.split('/').map(slug).join('.'), figmaId: v.id, name: v.name, type: v.resolvedType, category: cat, categorySource: src, collection: col.name,
-      role: first && first.type === 'VARIABLE_ALIAS' ? 'semantic' : 'primitive', origin: dep ? 'dependency' : 'selection', requiredBy: [], modes, usedBy: [], _chainIds: chainIds };
+    const col = colById[v.variableCollectionId], modes = {}, chainIds = [], aliasIds = {};
+    col.modes.forEach(m => { const r = resolve(v, m.modeId, byId, colById); chainIds.push(...r.ids); aliasIds[m.name] = r.ids.slice(); delete r.ids; modes[m.name] = r; });
+    const [cat, src] = category(v), first = v.valuesByMode[col.defaultModeId], semantic = !!(first && first.type === 'VARIABLE_ALIAS');
+    return { id: 'token.' + v.name.split('/').map(slug).join('.'), figmaId: v.id, name: v.name, type: v.resolvedType, category: cat, categorySource: src, collection: col.name, collectionId: col.id, defaultMode: (col.modes.find(m => m.modeId === col.defaultModeId) || col.modes[0]).name,
+      role: semantic ? 'semantic' : 'primitive', roleStatus: 'observed', roleSource: semantic ? 'figma-alias' : 'figma-value', origin: dep ? 'dependency' : 'selection', requiredBy: [], modes, aliasIds, usedBy: [], _chainIds: chainIds };
   };
   const tokens = [], have = new Set();
   allVars.forEach(v => { if (sel.collectionIds.includes(v.variableCollectionId) && (!sel.categories || sel.categories.includes(category(v)[0]))) { tokens.push(mk(v, false)); have.add(v.id); } });
@@ -1174,18 +1514,32 @@ async function buildDraft(sel, quiet) {
       catch (e) { issues.push({ code: 'STYLES_UNREADABLE', severity: 'warning', entityId: 'styles.' + k, message: 'Could not read ' + k + ' styles: ' + String((e && e.message) || e), recovery: 'Retry; if it persists, check the file for broken styles.' }); }
     }
   }
-  const components = [], screens = [], pagesOut = [], wanted = sel.componentIds ? new Set(sel.componentIds) : null;
+  const components = [], screens = [], pagesOut = [];
+  // Screens are evidence from the chosen pages; the component library is not a per-run
+  // choice — every COMPONENT / COMPONENT_SET in the file is exported, from every page.
   for (let pi = 0; pi < sel.pageIds.length; pi++) {
     const page = await figma.getNodeByIdAsync(sel.pageIds[pi]);
     if (!page || page.type !== 'PAGE') continue;
     await page.loadAsync(); pagesOut.push(page.name);
     (await topFrames(page)).forEach(c => { if (screens.length < 200) screens.push({ name: c.name, page: page.name, id: c.id, w: Math.round(c.width) }); });
-    const found = page.findAllWithCriteria({ types: ['COMPONENT_SET', 'COMPONENT'] }).filter(n => !(n.type === 'COMPONENT' && n.parent && n.parent.type === 'COMPONENT_SET') && (!wanted || wanted.has(n.id)));
+  }
+  const scans = [];
+  let totalC = 0;
+  for (const page of figma.root.children.filter(p => p.type === 'PAGE')) {
+    await page.loadAsync();
+    const found = page.findAllWithCriteria({ types: ['COMPONENT_SET', 'COMPONENT'] }).filter(n => !(n.type === 'COMPONENT' && n.parent && n.parent.type === 'COMPONENT_SET'));
+    if (found.length) { scans.push({ page, found }); totalC += found.length; }
+  }
+  let done = 0;
+  for (const { page, found } of scans) {
     for (let i = 0; i < found.length; i++) {
-      say(30 + Math.round(((pi + i / found.length) / sel.pageIds.length) * 50), 'Component: ' + found[i].name);
+      done++;
+      say(30 + Math.round((done / Math.max(1, totalC)) * 50), 'Component ' + done + '/' + totalC + ': ' + found[i].name);
       const r = await extractComponent(found[i], page.name); components.push(r.comp); issues.push(...r.issues);
+      if (done % 10 === 0) await new Promise(res => setTimeout(res, 0));
     }
   }
+
   if (sel.styles && sel.libStyles !== false) {
     const known = new Set([].concat(styles.text, styles.paint, styles.effect).map(x => x.id)), used = new Set(); components.forEach(c => c._styleIds.forEach(id => used.add(id)));
     for (const id of used) { if (known.has(id)) continue; try { const st = await figma.getStyleByIdAsync(id), r = st && styleRec(st, st.remote ? 'library' : 'local'); if (r) { styles[r.kind].push(r); known.add(id); } } catch (e) { /* inaccessible style */ } }
@@ -1223,6 +1577,7 @@ async function analyze(sel, ctxForm, dd) {
   const usedBy = {};
   components.forEach(c => { c.tokens = [...new Set(c._tokenIds.map(id => D.byId[id] && D.byId[id].name).filter(Boolean))].sort(); c._tokenIds.forEach(id => (usedBy[id] = usedBy[id] || new Set()).add(c.name)); });
   tokens.forEach(t => { if (usedBy[t.figmaId]) t.usedBy = [...usedBy[t.figmaId]].sort(); });
+  issues.push(...valueMatchIssues(tokens));
 
   const facts = ['Selected scope contains ' + D.pagesOut.length + ' page(s) and ' + D.screens.length + ' top-level frame(s).'].concat(D.screens.slice(0, 30).map(s => 'Frame "' + s.name + '" on page "' + s.page + '" (' + s.id + ')'));
   const designComps = components.filter(c => !c.icon);
@@ -1237,23 +1592,30 @@ async function analyze(sel, ctxForm, dd) {
   const refs = [], refReport = { ok: [], failed: [] };
   for (const id of (sel.refFrameIds || [])) { prog(95, 'Reference frame ' + (refs.length + 1) + '…'); try { const nd = await figma.getNodeByIdAsync(id); if (nd && nd.type === 'FRAME') { const rf = await refFrame(nd, D.byId, getEngine(sel), refTokenMap(tokens, D.styles), sel); refs.push(rf); refReport.ok.push({ id: rf.id, name: rf.name, nodes: rf.nodes, engine: rf.engine, images: (rf.files || []).length, notes: rf.notes || [] }); } else refReport.failed.push({ id, name: nd ? nd.name : id, reason: 'Not a top-level frame' }); } catch (e) { const why = String((e && e.message) || e); refReport.failed.push({ id, name: id, reason: why }); issues.push({ code: 'REFERENCE_FAILED', severity: 'warning', entityId: id, message: 'Frame could not be converted to code: ' + why, recovery: 'Deselect it or simplify the frame.' }); } }
   const E = getEngine(sel), compExport = { ok: [], failed: [], engine: E ? E.id + '@' + E.version : null };
-  if (E && typeof E.exportComponent === 'function' && sel.componentHtml !== false) {
+  if (E && typeof E.exportComponent === 'function') {
     prog(96, 'Rendering component HTML…');
-    const tokMap = refTokenMap(tokens, D.styles), classNames = new Set(), cap = 80;
-    for (const c of designComps.slice(0, cap)) {
-      try {
-        const nd = await figma.getNodeByIdAsync(c.figmaId);
-        if (!nd) throw new Error('Node is no longer in the file');
-        const r = await E.exportComponent(nd, tokMap, { matchColorsByValue: sel.refMatchColors !== false, embedImages: true }, classNames);
-        compExport.ok.push({ id: c.id, name: c.name, figmaId: c.figmaId, className: r.className, html: r.html, css: r.css, w: r.width, h: r.height, nodes: r.nodes, vars: r.vars, meta: r.metadata || null });
-      } catch (e) { compExport.failed.push({ id: c.id, name: c.name, reason: String((e && e.message) || e) }); }
+    const tokMap = refTokenMap(tokens, D.styles), classNames = new Set(), totalHtml = designComps.reduce((n, c) => n + (c.kind === 'component-set' ? c.variants || 1 : 1), 0); let rendered = 0;
+    for (const c of designComps) {
+      let nd;
+      try { nd = await figma.getNodeByIdAsync(c.figmaId); if (!nd) throw new Error('Node is no longer in the file'); } catch (e) { compExport.failed.push({ id: c.id, name: c.name, reason: String((e && e.message) || e) }); continue; }
+      const variants = nd.type === 'COMPONENT_SET' ? nd.children.filter(x => x.type === 'COMPONENT') : [nd], defaultNode = defaultComponentVariant(nd);
+      for (const variant of variants) {
+        rendered++; const isDefault = variant.id === defaultNode.id, name = isDefault ? c.name : c.name + ' / ' + variant.name;
+        if (rendered % 5 === 1) prog(96, 'Component HTML ' + rendered + '/' + totalHtml);
+        try {
+          const r = await E.exportComponent(variant, tokMap, { matchColorsByValue: sel.refMatchColors !== false, embedImages: true }, classNames);
+          compExport.ok.push({ id: isDefault ? c.id : c.id + '.variant.' + slug(variant.id), name, figmaId: isDefault ? c.figmaId : variant.id, nodeId: variant.id, variantOf: isDefault ? null : c.figmaId, isDefault, className: r.className, html: r.html, css: r.css, w: r.width, h: r.height, nodes: r.nodes, vars: r.vars, meta: r.metadata || null });
+        } catch (e) { compExport.failed.push({ id: isDefault ? c.id : c.id + '.variant.' + slug(variant.id), name, figmaId: variant.id, reason: String((e && e.message) || e) }); }
+        if (rendered % 5 === 0) await new Promise(res => setTimeout(res, 0));
+      }
     }
-    if (designComps.length > cap) compExport.failed.push({ id: '', name: '', reason: 'Component HTML limit reached (' + cap + ')' });
+    compExport.coverage = { sourceFamilies: designComps.length, sourceVariants: totalHtml, exportedFamilies: new Set(compExport.ok.map(x => x.variantOf || x.figmaId)).size, exportedVariants: compExport.ok.length, failedVariants: compExport.failed.length };
+    compExport.failed.forEach(x => issues.push({ code: 'COMPONENT_HTML_EXPORT_FAILED', severity: 'error', entityId: x.id, message: 'HTML export failed for ' + x.name + ': ' + x.reason, recovery: 'Fix the component or inspect the fig-engine error; partial coverage is reported.' }));
   }
   const nSty = D.styles.text.length + D.styles.paint.length + D.styles.effect.length, autoDesc = 'Design system file with ' + designComps.length + ' component(s), ' + tokens.length + ' token(s) and ' + nSty + ' style(s) across ' + D.pagesOut.length + ' page(s).';
   D.cols.filter(c => sel.collectionIds.includes(c.id)).forEach(c => facts.push('Variable collection "' + c.name + '" has ' + c.modes.length + ' mode(s): ' + c.modes.map(m => m.name).join(', ')));
-  if (designComps.length) facts.push('Selected scope contains ' + designComps.length + ' component(s) or component set(s).');
-  MODEL = { icons, iconPack: sel.iconPack || '', adherence: sel.adherence === undefined || sel.adherence === null ? 3 : clampLevel(sel.adherence), refs, refEmbed: sel.refEmbedImages === true, rootVars: rootVars(tokens), fileName: figma.root.name, pages: D.pagesOut, tokens, styles: D.styles, components: designComps, screens: D.screens, collections: D.cols.filter(c => sel.collectionIds.includes(c.id)).map(c => ({ name: c.name, modes: c.modes.map(m => m.name) })),
+  if (designComps.length) facts.push('The file contains ' + designComps.length + ' component(s) or component set(s) across all pages.');
+  MODEL = { icons, iconPack: sel.iconPack || '', adherence: sel.adherence === undefined || sel.adherence === null ? 3 : clampLevel(sel.adherence), refs, refEmbed: sel.refEmbedImages === true, rootVars: rootVars(tokens), fileName: figma.root.name, pages: D.pagesOut, tokens, styles: D.styles, components: designComps, screens: D.screens, collections: D.cols.filter(c => sel.collectionIds.includes(c.id)).map(c => ({ id: c.id, name: c.name, defaultMode: (c.modes.find(m => m.modeId === c.defaultModeId) || c.modes[0]).name, modes: c.modes.map(m => m.name), modeMap: Object.fromEntries(c.modes.map(m => [m.name, m.modeId])) })),
     componentHtml: compExport,
     sections: sel.sections || {}, context: cm === 'skip' ? buildContext({}, facts, []) : buildContext(ctxForm, facts, figInf, { name: figma.root.name, description: autoDesc }), contentPack: cm !== 'skip', ctxMode: cm, depPolicy: sel.depPolicy,
     depSummary: { tokens: tokens.filter(t => t.origin === 'dependency').length, components: components.filter(c => c.origin === 'dependency').length } };
@@ -1276,7 +1638,7 @@ const tbl = (h, rows) => rows.length ? '| ' + h.join(' | ') + ' |\n|' + h.map(()
 const NA = '_Not available from the selected sources (unsupported or not detected)._\n';
 const modeStr = t => Object.entries(t.modes).map(([m, r]) => m + ': ' + (r.status === 'resolved' ? r.value : '(' + r.status + ')')).join('; ');
 const tokRows = L => L.map(t => [t.name + (t.origin === 'dependency' ? ' (dependency)' : ''), t.role, modeStr(t), (Object.values(t.modes)[0].chain || []).join(' → ') || '—']);
-const UNS = [['foundations', 'Foundations'], ['patterns', 'Patterns'], ['layout', 'Layout'], ['responsive', 'Responsive'], ['interaction', 'Interaction'], ['accessibility', 'Accessibility'], ['content', 'Content'], ['documentation', 'Documentation'], ['governance', 'Governance']];
+const UNS = [['foundations', 'Foundations'], ['layout', 'Layout'], ['responsive', 'Responsive'], ['interaction', 'Interaction'], ['accessibility', 'Accessibility'], ['content', 'Content'], ['documentation', 'Documentation'], ['governance', 'Governance']];
 
 
 
@@ -1338,4 +1700,4 @@ if (typeof figma !== 'undefined') figma.ui.onmessage = async msg => {
     else if (msg.type === 'close') figma.closePlugin();
   } catch (e) { post('error', { message: String((e && e.message) || e) }); }
 };
-if (typeof module !== 'undefined') module.exports = { sendFiles, uiSize, levelPicker, extractDataImages, refDoc, refFileNames, refFileName, validate, enrichModel, lintPackage, aggregateIssues, uniquifyComponents, matchTextStyle, nearestColor, guessPack, engineInfo, refTokenMap, aiControlMd, levelLine, referenceFiles, tokensCss, cssVar, iconScore, inferFromFrames, buildPrompt, promptData, referenceMd, iconsMd, parseContext, buildContext, ctxMd, contentMd, planDependencies, applyPolicy, resolve, gen };
+if (typeof module !== 'undefined') module.exports = { sendFiles, uiSize, levelPicker, extractDataImages, refDoc, refFileNames, refFileName, validate, enrichModel, patternData, referenceIndexData, lintPackage, aggregateIssues, uniquifyComponents, matchTextStyle, nearestColor, guessPack, engineInfo, refTokenMap, valueMatchIssues, aiControlMd, levelLine, referenceFiles, tokensCss, cssNameMap, cssValue, cssVar, iconScore, inferFromFrames, buildPrompt, promptData, referenceMd, iconsMd, parseContext, buildContext, ctxMd, contentMd, planDependencies, applyPolicy, resolve, gen };

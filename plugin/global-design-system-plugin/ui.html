@@ -97,7 +97,7 @@ main{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;scro
     </div>
 
     <section class="panel active" id="panel0">
-      <div class="panel-head"><div><h2>What should we include?</h2><p>Choose pages and design-system assets. You can adjust them before building.</p></div><div class="count" id="sourceCount">0 sources selected</div></div>
+      <div class="panel-head"><div><h2>What should we include?</h2><p>Choose pages to read for evidence. The component library is exported from every page automatically.</p></div><div class="count" id="sourceCount">0 sources selected</div></div>
       <div class="toolbar"><input class="search" id="searchSource" placeholder="Search pages and assets…" aria-label="Search sources"><button class="text-btn" id="srcRecommended" type="button">Recommended</button><button class="text-btn" id="srcAll" type="button">Select all</button></div>
       <div class="list" id="sourceList"></div>
       <div class="adh">
@@ -122,7 +122,7 @@ main{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;scro
 
     <section class="panel" id="panel1">
       <div class="panel-head"><div><h2>Choose reference pages</h2><p>Each selected frame ships as its own HTML file, named after the frame. Frames inside sections are listed.</p></div><div class="count" id="refCount">0 references selected</div></div>
-      <div class="toolbar"><input class="search" id="searchRefs" placeholder="Search reference frames…" aria-label="Search references"><button class="text-btn" id="refsRecommended" type="button">Recommended</button><button class="text-btn" id="refsNone" type="button">None</button><button class="text-btn" id="refsReload" type="button" title="Re-read the selected pages without leaving this step">↻ Reload</button></div>
+      <div class="toolbar"><input class="search" id="searchRefs" placeholder="Search reference frames…" aria-label="Search references"><button class="text-btn" id="refsAll" type="button">Select all</button><button class="text-btn" id="refsRecommended" type="button">Recommended</button><button class="text-btn" id="refsNone" type="button">None</button><button class="text-btn" id="refsReload" type="button" title="Re-read the selected pages without leaving this step">↻ Reload</button></div>
       <div class="ref-grid" id="refGrid"></div>
       <div class="empty hide" id="refEmpty">No top-level frames on the selected pages. Go back and add a page with frames.</div>
       <div class="info"><span class="i">ⓘ</span><span><strong>Reload picks up your edits.</strong> After you add, rename or delete frames on these pages, press Reload — the list and the previews refresh in place, and your selection is kept for the frames that are still there. Reference HTML is visual evidence, not the source of truth for token values; if you don't need examples, select <strong>None</strong>.</span></div>
@@ -168,7 +168,6 @@ const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^
 const ASSETS = [
   { id: 'tokens', title: 'Variables & tokens', meta: 'Collections, aliases, modes and token values', icon: '◈', rec: true },
   { id: 'styles', title: 'Styles', meta: 'Text, color and effect styles', icon: 'Aa', rec: true },
-  { id: 'components', title: 'Component library', meta: 'Component sets, properties, variants and HTML', icon: '◇', rec: true },
   { id: 'icons', title: 'Icons', meta: 'Icon components and vector assets', icon: '✳', rec: false }
 ];
 
@@ -176,7 +175,7 @@ const S = {
   step: 0, maxStep: 0, loaded: false,
   fileName: '', pages: [], collections: [], comps: [], counts: {},
   saved: null, engine: null, steps: [], creativity: 0, adherence: 0,
-  selPages: new Set(), selAssets: new Set(['tokens', 'styles', 'components']),
+  selPages: new Set(), selAssets: new Set(['tokens', 'styles']),
   frames: [], selRefs: new Set(), recommendedRefs: new Set(), thumbs: {}, refLoaded: false, reloading: false, refNote: '',
   progress: 0, building: false, built: false, analysis: null,
   files: [], incoming: null, errors: [],
@@ -437,7 +436,6 @@ function startBuild() {
 
 function selObj() {
   const hasTokens = S.selAssets.has('tokens');
-  const hasComponents = S.selAssets.has('components');
   const hasIcons = S.selAssets.has('icons');
   return {
     pageIds: [...S.selPages],
@@ -448,8 +446,8 @@ function selObj() {
     libStyles: true,
     icons: hasIcons,
     iconSvg: hasIcons,
-    componentIds: hasComponents ? null : [],
-    componentHtml: hasComponents,
+    componentIds: null,
+    componentHtml: true,
     iconPack: '',
     refFrameIds: [...S.selRefs],
     adherence: S.adherence,
@@ -521,11 +519,9 @@ function handle(m) {
     S.selPages = new Set(initial);
     if (S.saved) {
       const hasTokens = Array.isArray(S.saved.collectionIds) ? S.saved.collectionIds.length > 0 : true;
-      const hasComps = Array.isArray(S.saved.componentIds) ? S.saved.componentIds.length > 0 : true;
       S.selAssets = new Set();
       if (hasTokens) S.selAssets.add('tokens');
       if (S.saved.styles !== false) S.selAssets.add('styles');
-      if (hasComps) S.selAssets.add('components');
       if (S.saved.icons === true) S.selAssets.add('icons');
     }
     if (!S.engine || !S.engine.available) { $('fileDot').style.background = '#c58a1a'; $('filePill').textContent = S.fileName + ' · engine missing'; }
@@ -597,6 +593,7 @@ $('searchSource').oninput = e => { S.srcQuery = e.target.value; drawSources(); }
 $('searchRefs').oninput = e => { S.refQuery = e.target.value; drawRefs(); };
 $('srcRecommended').onclick = () => { S.selPages = new Set(S.pages.filter(p => p.recommendation === 'Recommended').map(p => p.id)); S.selAssets = new Set(ASSETS.filter(a => a.rec).map(a => a.id)); resetRefs(); drawSources(); };
 $('srcAll').onclick = () => { S.selPages = new Set(S.pages.map(p => p.id)); S.selAssets = new Set(ASSETS.map(a => a.id)); resetRefs(); drawSources(); };
+$('refsAll').onclick = () => { S.selRefs = new Set(S.frames.map(f => f.id)); drawRefs(); drawFoot(); };
 $('refsRecommended').onclick = () => { S.selRefs = new Set(S.recommendedRefs); drawRefs(); };
 $('refsNone').onclick = () => { S.selRefs = new Set(); drawRefs(); };
 $('refsReload').onclick = () => { if (S.reloading || S.building) return; S.reloading = true; S.refNote = ''; drawRefs(); loadFrames(); };

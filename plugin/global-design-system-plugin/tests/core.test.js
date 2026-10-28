@@ -190,13 +190,17 @@ t('tokens.css: exact Figma-derived names, aliases kept as var(), units, modes, t
   assert.match(c, /--paint-brand: #FF0000;/); assert.match(c, /--shadow-shadow-1: 0px 4px 8px 0px #00000040;/); assert.match(c, /ai-control\.md/);
   assert.ok(!c.includes('[object Object]'));
 });
-t('tokens.css: name collisions are disambiguated, never overwritten', () => {
-  const M = cssM(); M.tokens.push(mkTok('color/blue/600', 'color', 'COLOR', { Light: R('#000000') })); const c = tokensCss(M).content;
-  assert.match(c, /--color-blue-600:/); assert.match(c, /--color-blue-600-2: #000000;/);
+t('tokens.css: name collisions are disambiguated deterministically, never overwritten', () => {
+  const M = cssM(); M.tokens.push(mkTok('color/blue/600', 'color', 'COLOR', { Light: R('#000000') }));
+  const N = require('../src/core.js').cssNameMap(M.tokens), a = N.byFigma['Color/Blue/600'], b = N.byFigma['color/blue/600'];
+  assert.notEqual(a, b); assert.ok(a.startsWith('--color-blue-600-') && b.startsWith('--color-blue-600-'));
+  const c = tokensCss(M).content; assert.ok(c.includes(a + ': #3F6FB5;')); assert.ok(c.includes(b + ': #000000;'));
+  const shuffled = require('../src/core.js').cssNameMap(M.tokens.slice().reverse());
+  assert.deepEqual(shuffled.byFigma, N.byFigma, 'input order cannot change semantic names');
 });
 t('package: tokens.css is shipped; design.md carries mandatory AI rules and text classes; components.md carries exact sizes', () => {
   const M = cssM(); M.contentPack = false; M.components[0].variantDims = [{ name: 'Size=Small', w: 80, h: 32 }, { name: 'Size=Medium', w: 96, h: 40 }];
-  M.components[0].spec = [{ prop: 'height', raw: '40px', bound: 'Size/Medium' }, { prop: 'padding-left', raw: '16px', bound: 'Spacing/16' }, { prop: 'background-color', raw: '#3F6FB5', bound: null }, { prop: 'text', node: 'Label', textStyle: 'Heading/H1', raw: '32px' }];
+  M.components[0].spec = [{ prop: 'height', raw: '40px', bound: 'Size/Medium' }, { prop: 'padding-left', raw: '16px', bound: 'Spacing/16' }, { prop: 'background-color', raw: '#3F6FB5', bound: 'Color/Primary', boundId: 'Color/Primary' }, { prop: 'text', node: 'Label', textStyle: 'Heading/H1', raw: '32px' }];
   const f = gen(M, 'standard', [], []), d = f.find(x => x.path === 'design.md').content, c = f.find(x => x.path === 'components.md').content;
   assert.ok(f.some(x => x.path === 'tokens.css')); assert.ok(gen(M, 'minimal', [], []).some(x => x.path === 'tokens.css'));
   assert.match(d, /Rules for AI agents \(mandatory\)/); assert.match(d, /MISSING TOKEN/); assert.match(d, /`\.text-heading-h1`/); assert.match(d, /tokens\.css/);
@@ -206,6 +210,90 @@ t('package: tokens.css is shipped; design.md carries mandatory AI rules and text
 t('prompt: tokens are given as exact CSS variables with the Figma name', () => {
   const M = cssM(); const d = require('../src/core.js').promptData(Object.assign(M, { icons: [], iconPack: '' }));
   const p = buildPrompt({ detail: 'full' }, d); assert.match(p, /var\(--color-primary\) = #3F6FB5\s+\/\* Color\/Primary \*\//); assert.match(p, /\.text-heading-h1/); assert.match(p, /Never write a literal color/);
+});
+t('token resolver: multi-level aliases retain stable IDs; broken and circular aliases are explicit', () => {
+  const core = require('../src/core.js'), v = (id, name, value) => ({ id, name, variableCollectionId: 'c', resolvedType: 'COLOR', valuesByMode: { m: value } }), alias = id => ({ type: 'VARIABLE_ALIAS', id });
+  const byId = { a: v('a', 'A', alias('b')), b: v('b', 'B', alias('c')), c: v('c', 'C', { r: 0, g: 0, b: 0 }) }, cols = { c: { defaultModeId: 'm' } };
+  const r = core.resolve(byId.a, 'm', byId, cols); assert.equal(r.status, 'resolved'); assert.equal(r.value, '#000000'); assert.equal(r.aliasId, 'b'); assert.deepEqual(r.ids, ['b', 'c']); assert.deepEqual(r.chain, ['B', 'C']);
+  assert.equal(core.resolve(v('x', 'Broken', alias('missing')), 'm', byId, cols).status, 'unresolved');
+  const cycle = { a: v('a', 'A', alias('b')), b: v('b', 'B', alias('a')) }; assert.equal(core.resolve(cycle.a, 'm', cycle, cols).status, 'circular');
+});
+t('tokens.css: multiple collections and modes are preserved and naming is permutation-independent', () => {
+  const core = require('../src/core.js'), M = cssM(), extra = mkTok('Other/Accent', 'color', 'COLOR', { Light: R('#111111'), Dark: R('#EEEEEE') }); extra.collection = 'Other'; M.tokens.push(extra); M.collections.push({ name: 'Other', modes: ['Light', 'Dark'] });
+  const c = tokensCss(M).content; assert.match(c, /\/\* Theme \*\//); assert.match(c, /\/\* Other \*\//); assert.match(c, /--other-accent: #111111;/); assert.match(c, /\[data-theme="dark"\][\s\S]*--other-accent: #EEEEEE;/);
+  const N = core.cssNameMap(M.tokens); [M.tokens.slice().reverse(), M.tokens.slice(3).concat(M.tokens.slice(0, 3)), M.tokens.slice().sort((a, b) => b.figmaId.localeCompare(a.figmaId))].forEach(tokens => assert.deepEqual(core.cssNameMap(tokens).byFigma, N.byFigma));
+});
+t('token resolution: equal values stay ambiguous, explicit bindings win, and font weights are valid CSS', () => {
+  const core = require('../src/core.js'), M = cssM(), map = core.refTokenMap(M.tokens, M.styles); assert.equal(map.colors['#3F6FB5'], undefined); assert.ok(core.valueMatchIssues(M.tokens).some(i => i.code === 'TOKEN_VALUE_MATCH_AMBIGUOUS'));
+  const regular = mkTok('Font/Weight/Regular', 'typography', 'STRING', { Light: R('Regular') }), custom = mkTok('Font/Weight/Custom', 'typography', 'STRING', { Light: R('CustomWeight') });
+  assert.equal(core.cssValue(regular, 'Regular'), 400); assert.equal(core.cssValue(custom, 'CustomWeight'), null);
+  const V = core.validate(Object.assign(M, { tokens: [custom] }), []); assert.ok(V.issues.some(i => i.code === 'TOKEN_INVALID_CSS_VALUE' && i.severity === 'error'));
+});
+t('token map: source, alias, mode and CSS counts are explainable and share one manifest calculation', () => {
+  const core = require('../src/core.js'), M = cssM(), f = core.gen(M, 'full', [], []), TM = JSON.parse(f.find(x => x.path === 'metadata/token-map.json').content), man = JSON.parse(f.find(x => x.path === 'manifest.json').content);
+  assert.equal(TM.stats.sourceTokens, M.tokens.length); assert.equal(TM.stats.aliasTokens, 1); assert.equal(TM.stats.modeValues.total, M.tokens.length * 2); assert.equal(TM.stats.modeValues.resolved, M.tokens.length * 2); assert.equal(TM.stats.cssVariables, M.tokens.length); assert.equal(TM.stats.notEmitted, 0); assert.equal(TM.stats.ambiguousValues, 1); assert.deepEqual(man.stats.tokens, TM.stats);
+  const theme = TM.collections.find(c => c.name === 'Theme'); assert.equal(theme.defaultMode, 'Light'); assert.equal(theme.modes[1].theme, 'dark'); assert.equal(TM.tokens.find(t => t.name === 'Color/Primary').roleStatus, 'observed'); assert.match(f.find(x => x.path === 'tokens.md').content, /## Accounting/);
+  M.tokens.push(mkTok('Color/Broken', 'color', 'COLOR', { Light: { status: 'unresolved', chain: ['Missing'] }, Dark: { status: 'unresolved', chain: ['Missing'] } }));
+  const brokenFiles = core.gen(M, 'full', [], []), broken = JSON.parse(brokenFiles.find(x => x.path === 'metadata/token-map.json').content); assert.equal(broken.stats.notEmitted, 1); assert.equal(broken.stats.modeValues.unresolved, 2); assert.equal(broken.tokens.find(t => t.name === 'Color/Broken').status, 'unresolved'); assert.ok(!core.lintPackage(brokenFiles, M).findings.some(i => i.code === 'MANIFEST_TOKEN_MISSING'));
+});
+t('component graph: variants, tokens, dependencies and observed instances are retrievable from the index', () => {
+  const core = require('../src/core.js'), M = cssM(), c = M.components[0]; c.figmaId = 'set:1'; c.variants = 2; c._tokenIds = ['Color/Primary']; c._nested = [{ name: 'Library Icon', nodeId: 'lib:icon', remote: true }, { name: 'Missing Icon', nodeId: 'missing:icon', remote: false }];
+  const meta = (id, size) => ({ id, name: 'Size=' + size, familyId: 'set:1', familyName: 'Button', variantProperties: { Size: size } });
+  M.componentHtml = { engine: 'fig-engine@test', ok: [
+    { id: c.id, name: 'Button', figmaId: 'set:1', nodeId: 'v:medium', isDefault: true, className: 'button', html: '<button>OK</button>', css: '.button{color:var(--color-primary)}', w: 96, h: 40, nodes: 1, vars: ['--color-primary'], meta: meta('v:medium', 'Medium') },
+    { id: c.id + '.variant.v-small', name: 'Button / Size=Small', figmaId: 'v:small', nodeId: 'v:small', variantOf: 'set:1', isDefault: false, className: 'button-small', html: '<button>OK</button>', css: '.button-small{color:var(--color-primary)}', w: 80, h: 32, nodes: 1, vars: ['--color-primary'], meta: meta('v:small', 'Small') }
+  ], failed: [] };
+  M.refs = [{ id: 'fr:1', name: 'Home', page: 'P', w: 390, h: 844, nodes: 2, truncated: false, body: '<div></div>', links: [], fonts: {}, vars: [], components: [{ id: 'v:medium', name: 'Size=Medium', familyId: 'set:1', familyName: 'Button', variantProperties: { Size: 'Medium' }, instances: [{ id: 'i:1', name: 'CTA' }] }] }];
+  const files = core.gen(M, 'standard', [], []), index = JSON.parse(files.find(f => f.path === 'components/index.json').content), family = index.graph.families[0];
+  assert.equal(index.graph.families.length, 1); assert.equal(family.variants.length, 2); assert.deepEqual(family.variants.map(v => v.properties.Size), ['Medium', 'Small']); assert.equal(family.extraction.status, 'extracted');
+  assert.deepEqual(family.tokens.map(t => t.figmaId), ['Color/Primary']); assert.deepEqual(family.dependencies.map(d => d.status), ['external', 'missing']);
+  assert.equal(family.instances[0].id, 'i:1'); assert.equal(family.instances[0].file, 'reference/Home.html'); assert.deepEqual(family.usedIn, ['Home.html']);
+  assert.equal(index.graph.stats.instances, 1); assert.equal(index.graph.stats.externalDependencies, 1); assert.equal(index.graph.stats.missingDependencies, 1); assert.ok(!core.lintPackage(files, M).findings.some(i => i.code.indexOf('COMPONENT_GRAPH_') === 0));
+});
+t('patterns: deterministic structure grouping preserves evidence, states and exceptions', () => {
+  const core = require('../src/core.js'), M = cssM();
+  const structure = (root, instance, size) => ({ id: root, tag: 'div', children: [
+    { id: instance, tag: 'button', componentId: 'v:' + size, componentName: 'Size=' + size, componentFamilyId: 'set:1', componentFamilyName: 'Button', variantProperties: { Size: size }, children: [{ id: instance + ':text', tag: 'span', children: [] }] },
+    { id: root + ':copy', tag: 'p', children: [] }
+  ] });
+  const ref = (id, name, page, w, body, tree) => ({ id, name, page, w, h: 844, nodes: 3, truncated: false, body, css: '', links: [], fonts: {}, vars: [], files: [], structure: tree || null });
+  M.refs = [
+    ref('fr:2', 'Checkout', 'Flows', 1440, '<div class="generated-b">ignored</div>', structure('fr:2', 'i:2', 'Small')),
+    ref('fr:1', 'Home', 'Screens', 390, '<div class="generated-a">ignored</div>', structure('fr:1', 'i:1', 'Medium')),
+    ref('fr:3', 'Fallback', 'Screens', 390, '<div class="generated-c"><p>Visible text is not a fingerprint input</p></div>')
+  ];
+  const first = core.patternData(M), repeated = first.patterns.find(p => p.occurrences.length === 2);
+  assert.deepEqual(first.stats, { references: 3, patterns: 2, repeatedPatterns: 1, groupedReferences: 2, singletonPatterns: 1 });
+  assert.equal(repeated.status, 'Observed'); assert.deepEqual(repeated.occurrences.map(o => o.referenceId), ['fr:2', 'fr:1']);
+  assert.ok(repeated.exceptions.some(e => e.type === 'viewport-size')); assert.ok(repeated.exceptions.some(e => e.type === 'component-variant'));
+  assert.ok(repeated.occurrences[1].nodes.some(n => n.id === 'i:1')); assert.equal(repeated.occurrences[1].evidenceLevel, 'figma-ir');
+  assert.ok(!JSON.stringify(repeated.structure).includes('i:1')); assert.ok(!JSON.stringify(repeated.structure).includes('generated-a'));
+  const fingerprints = first.patterns.map(p => p.fingerprint).sort();
+  M.refs.reverse(); M.refs.forEach(r => { if (r.structure) r.structure.id = 'changed:' + r.id; });
+  const second = core.patternData(M); assert.deepEqual(second.patterns.map(p => p.fingerprint).sort(), fingerprints, 'reference order and node IDs cannot change fingerprints');
+  assert.ok(second.patterns.some(p => p.occurrences[0].evidenceLevel === 'reference-html'), 'built-in HTML remains usable with explicit evidence limits');
+  const files = core.gen(M, 'standard', [], []), index = JSON.parse(files.find(f => f.path === 'components/index.json').content);
+  assert.deepEqual(index.patterns.stats, second.stats); assert.match(files.find(f => f.path === 'design.md').content, /## Patterns/);
+  assert.ok(!core.lintPackage(files, M).findings.some(i => i.code.indexOf('PATTERN_') === 0));
+  const damaged = files.map(f => f.path === 'components/index.json' ? Object.assign({}, f, { content: f.content.replace('"references": 3', '"references": 99') }) : f);
+  assert.ok(core.lintPackage(damaged, M).findings.some(i => i.code === 'PATTERN_STATS_MISMATCH'), 'lint detects counts that bypass structure grouping');
+});
+t('reference index: contextual component, pattern, token and link retrieval stays exact', () => {
+  const core = require('../src/core.js'), M = cssM();
+  const ref = (id, name, body, links) => ({ id, name, page: 'Screens', w: 390, h: 844, nodes: 2, truncated: false, body, css: '', links: links || [], fonts: {}, vars: ['--color-primary'], files: [], structure: null });
+  M.refs = [
+    ref('fr:1', 'Home', '<div><button type="button" data-component="Size=Medium" data-component-id="v:medium" data-component-family="Button" data-component-family-id="set:1" data-variant-size="Medium"><span>Buy</span></button></div>', ['fr:2', 'fr:missing']),
+    ref('fr:2', 'Settings', '<div><p>Preferences</p></div>')
+  ];
+  const files = core.gen(M, 'standard', [], []), index = JSON.parse(files.find(f => f.path === 'components/index.json').content), home = index.references.entries.find(e => e.id === 'fr:1');
+  assert.equal(index.references.stats.references, 2); assert.equal(index.references.stats.withComponents, 1); assert.equal(index.references.stats.resolvedLinks, 1); assert.equal(index.references.stats.unresolvedLinks, 1);
+  assert.equal(home.file, 'reference/Home.html'); assert.deepEqual(home.componentIds, ['v:medium']); assert.deepEqual(home.familyIds, ['set:1']); assert.equal(home.components[0].instanceId, 'fr:1');
+  assert.equal(home.components[0].variantProperties.Size, 'Medium'); assert.deepEqual(home.vars, ['--color-primary']); assert.equal(home.patterns.length, 1);
+  assert.deepEqual(home.links, [{ destinationId: 'fr:2', status: 'resolved', file: 'reference/Settings.html' }, { destinationId: 'fr:missing', status: 'unresolved-in-package', file: null }]);
+  assert.match(files.find(f => f.path === 'SKILL.md').content, /## Contextual retrieval[\s\S]*Filter `references\.entries`/);
+  assert.ok(!files.some(f => f.path === 'reference/index.html')); assert.ok(!core.lintPackage(files, M).findings.some(i => i.code.indexOf('REFERENCE_INDEX_') === 0));
+  const damaged = files.map(f => f.path === 'components/index.json' ? Object.assign({}, f, { content: f.content.replace('"withComponents": 1', '"withComponents": 2') }) : f);
+  assert.ok(core.lintPackage(damaged, M).findings.some(i => i.code === 'REFERENCE_INDEX_STATS_MISMATCH'));
 });
 // ---- Icon rules
 t('icon detection: standard sizes and vector-only shapes (20×20, vector) are icons; rules are tunable', () => {
@@ -302,14 +390,32 @@ t('files are sent in chunks and reassemble to the original', () => {
   assert.equal(sent[0].type, 'files-begin'); assert.equal(sent[sent.length - 1].type, 'files-done'); const ch = sent.filter(m => m.type === 'file-chunk'); assert.equal(ch.length, 3);
   assert.equal(ch.sort((a, b) => a.data.i - b.data.i).map(m => m.data.part).join(''), big); assert.ok(sent.some(m => m.type === 'file' && m.data.binary)); delete global.figma;
 });
-t('package quality: realistic file (duplicates, icon library, no spacing tokens, unbound text and colors) scores 100 with no literal values', () => {
+t('package lint: JSON, Markdown, HTML and CSS defects are structured findings with file and location', () => {
+  const core = require('../src/core.js'), M = cssM(); M.tokens = []; M.components = []; M.collections = [];
+  const files = [
+    { path: 'design.md', content: '# Design\n\n### Read order\n\n[Broken](missing.md)\n' },
+    { path: 'reference/Home.html', content: '<a data-go="Missing.html">Go</a><img src="missing.png">' },
+    { path: 'tokens.css', content: ':root { --ok: 1px; }\n.a { color: var(--missing); background: url("missing.png"); }' },
+    { path: 'manifest.json', content: '{ invalid json' }
+  ];
+  const L = core.lintPackage(files, M), codes = L.findings.map(i => i.code);
+  ['PACKAGE_BROKEN_REFERENCE', 'CSS_TOKEN_UNDEFINED', 'JSON_INVALID'].forEach(code => assert.ok(codes.includes(code), code)); assert.ok(L.findings.every(i => i.code && i.severity && i.file && i.location && i.message)); assert.ok(L.score < 100);
+});
+t('package lint: manifest/token mismatches and omitted mode selectors fail package integrity', () => {
+  const core = require('../src/core.js'), M = cssM(), f = core.gen(M, 'full', [], []);
+  assert.deepEqual(core.lintPackage(f, M).findings, []);
+  const man = f.find(x => x.path === 'manifest.json'), data = JSON.parse(man.content), id = Object.keys(data.entities).find(k => data.entities[k].source.type === 'figma_variable'); data.entities[id].output.cssVar = '--not-real'; man.content = JSON.stringify(data);
+  const css = f.find(x => x.path === 'tokens.css'); css.content = css.content.replace('[data-theme="dark"]', '[data-theme="night"]');
+  const codes = core.lintPackage(f, M).findings.map(i => i.code); assert.ok(codes.includes('MANIFEST_TOKEN_MISSING')); assert.ok(codes.includes('THEME_MODE_MISSING'));
+});
+t('package quality: realistic file has no literal values or package-integrity findings, but warnings prevent a perfect self-check', () => {
   const core = require('../src/core.js'), M = require('./fixture-realistic.js')(), f = core.gen(M, 'standard', [], []), by = p => (f.find(x => x.path === p) || {}).content || '';
-  assert.equal(M.lint.score, 100, JSON.stringify(M.lint.checks.filter(c => !c.pass)));
+  assert.equal(M.lint.score, 95, JSON.stringify(M.lint.checks.filter(c => !c.pass))); assert.deepEqual(M.lint.findings, []);
   const md = f.filter(x => /\.md$/.test(x.path)); assert.ok(md.length <= 7); assert.ok(md.reduce((a, x) => a + Math.ceil(x.content.length / 4), 0) < 12000, 'total Markdown stays under 12k tokens');
   const comp = by('components.md'); assert.ok((comp.match(/^\| (vuesax|Unnamed)/gm) || []).length <= 80, 'icon library is not dumped'); assert.match(comp, /Icon pack: Iconsax \(inferred/); assert.match(comp, /## hero section \(2\)/); assert.match(comp, /## next&pervie bt \(2\)/);
   assert.match(by('tokens.css'), /--space-16: 16px;/); assert.match(by('tokens.css'), /--radius-12: 12px;/); assert.ok(!/\d\.\d{4,}/.test(by('tokens.css') + by('design.md')), 'no float noise');
   assert.match(by('design.md'), /### Read order/); assert.ok(!/Frame "/.test(by('design.md')) && !/Frame 21472/.test(by('content.md')), 'no generic frame names'); assert.match(by('content.md'), /26 icon sheet\(s\) were recognized/);
-  assert.match(by('design.md'), /desktop|web or desktop/); assert.match(by('validation.md'), /Package self-check: 100 \/ 100/); assert.match(by('validation.md'), /## Fix first/);
+  assert.match(by('design.md'), /desktop|web or desktop/); assert.match(by('validation.md'), /Package self-check: 95 \/ 100/); assert.match(by('validation.md'), /## Fix first/);
   const css = comp.split('```css').slice(1).map(b => b.split('```')[0]).join('\n').replace(/\/\*.*?\*\//g, ''); assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(css), 'no literal colors in Spec CSS'); assert.ok(!/(padding|gap|radius)[^;]*\d+px/.test(css), 'no literal spacing in Spec CSS');
 });
 t('package quality: lint catches real defects', () => {

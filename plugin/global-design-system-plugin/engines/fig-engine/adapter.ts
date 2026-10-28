@@ -70,9 +70,24 @@ export interface FrameResult {
   assets: number;
   /** External image files referenced by bodyHtml/css as `assets/<name>`; content is base64. Empty when embedImages is true. */
   files: Array<{ path: string; base64: string }>;
-  /** The components this frame actually uses, with their variant and property metadata. */
-  components: ComponentMeta[];
+  /** The components this frame actually uses, with their variant, property and instance metadata. */
+  components: ComponentUsage[];
+  /** Source-backed structure for deterministic pattern extraction; text, classes and styles are excluded. */
+  structure: FrameStructureNode;
   notes: string[];
+}
+
+export interface FrameStructureNode {
+  id: string;
+  tag: string;
+  componentId?: string;
+  componentName?: string;
+  componentFamilyId?: string;
+  componentFamilyName?: string;
+  variantProperties?: Record<string, string>;
+  link?: boolean;
+  control?: string;
+  children: FrameStructureNode[];
 }
 
 export interface ComponentResult {
@@ -106,6 +121,10 @@ export interface ComponentMeta {
   propertyDefinitions?: Record<string, { type: string; defaultValue?: string | boolean; variantOptions?: string[] }>;
 }
 
+export interface ComponentUsage extends ComponentMeta {
+  instances: Array<{ id: string; name: string }>;
+}
+
 function readOpt<T>(get: () => T): T | undefined {
   try { return get(); } catch { return undefined; }
 }
@@ -132,17 +151,37 @@ function componentMeta(node: SceneNode): ComponentMeta | undefined {
 }
 
 /** Every component an exported frame actually uses, harvested from the IR. */
-function usedComponents(root: IRNode): ComponentMeta[] {
-  const byId = new Map<string, ComponentMeta>();
+function usedComponents(root: IRNode): ComponentUsage[] {
+  const byId = new Map<string, ComponentUsage>();
   const walk = (n: IRNode) => {
     const ref = n.componentRef as ComponentMeta & { componentProperties?: Record<string, string | boolean> } | undefined;
-    if (ref && !byId.has(ref.id)) {
-      byId.set(ref.id, { id: ref.id, name: ref.name, familyId: ref.familyId || ref.id, familyName: ref.familyName || ref.name, variantProperties: ref.variantProperties, propertyDefinitions: ref.propertyDefinitions });
+    if (ref) {
+      let usage = byId.get(ref.id);
+      if (!usage) {
+        usage = { id: ref.id, name: ref.name, familyId: ref.familyId || ref.id, familyName: ref.familyName || ref.name, variantProperties: ref.variantProperties, propertyDefinitions: ref.propertyDefinitions, instances: [] };
+        byId.set(ref.id, usage);
+      }
+      if (!usage.instances.some(x => x.id === n.id)) usage.instances.push({ id: n.id, name: n.name });
     }
     n.children.forEach(walk);
   };
   walk(root);
   return Array.from(byId.values());
+}
+
+function frameStructure(n: IRNode): FrameStructureNode {
+  const ref = n.componentRef as ComponentMeta | undefined;
+  const out: FrameStructureNode = { id: n.id, tag: n.tag, children: n.children.map(frameStructure) };
+  if (ref) {
+    out.componentId = ref.id;
+    out.componentName = ref.name;
+    out.componentFamilyId = ref.familyId || ref.id;
+    out.componentFamilyName = ref.familyName || ref.name;
+    if (ref.variantProperties) out.variantProperties = ref.variantProperties;
+  }
+  if (n.href) out.link = true;
+  if (n.attrs && n.attrs.type) out.control = n.attrs.type;
+  return out;
 }
 
 function hexKey(hex: string): string | null {
@@ -344,6 +383,7 @@ export async function exportFrame(node: SceneNode, tokens: TokenMap, o: ExportOp
     nodes: count.nodes,
     assets: count.assets,
     components: usedComponents(ir),
+    structure: frameStructure(ir),
     files: Array.from(fileMap.entries()).map(([path, base64]) => ({ path, base64 })),
     notes: [],
   };

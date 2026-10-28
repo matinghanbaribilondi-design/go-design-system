@@ -25,7 +25,7 @@ FigEngine.contract                // 1
 FigEngine.capabilities            // ["frame", "component", "markers", "metadata"]
 
 await FigEngine.exportFrame(node, tokens, options)
-// -> { engine, version, name, width, height, bodyHtml, css, vars, links, fonts, rtl, nodes, assets, files, components, notes }
+// -> { engine, version, name, width, height, bodyHtml, css, vars, links, fonts, rtl, nodes, assets, files, components, structure, notes }
 
 await FigEngine.exportComponent(node, tokens, options, classNames?)
 // -> { engine, version, nodeId, name, className, width, height, html, css, vars, nodes, files, metadata, notes }
@@ -42,8 +42,11 @@ await FigEngine.exportComponent(node, tokens, options, classNames?)
 - `metadata`: the engine's `readComponentMetadata` also yields the Component **Set** identity and the property
   values, so markers grow to `data-component-family`, `data-component-family-id`, `data-variant-<axis>` and
   `data-component-prop-<name>`. `exportFrame.components` is the de-duplicated list of components the frame uses
-  (id, name, family, variantProperties, propertyDefinitions) and `exportComponent.metadata` is the same thing for
-  the exported component itself. `core.js` writes both into `components/index.json` (`metadata` + `usedIn`).
+  (id, name, family, variantProperties, propertyDefinitions) plus the actual instance IDs and names observed for
+  each one. `exportComponent.metadata` describes the exported component itself. `core.js` writes these into
+  `components/index.json` (`metadata`, `usedIn` and the component graph).
+- `exportFrame.structure` is the IR-backed tag/component tree with real Figma node IDs and variant values. It omits
+  text, generated classes and styles so `core.js` can build deterministic observed-pattern fingerprints and exact evidence.
 - `core.js` checks `contract === 1` before using the module. If the contract changes, bump it in both places.
 
 ### Renderer options the adapter deliberately leaves off

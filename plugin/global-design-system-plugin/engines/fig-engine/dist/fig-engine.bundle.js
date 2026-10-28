@@ -5611,13 +5611,32 @@ ${indent}</${tag2}>`;
     const byId = /* @__PURE__ */ new Map();
     const walk = (n) => {
       const ref = n.componentRef;
-      if (ref && !byId.has(ref.id)) {
-        byId.set(ref.id, { id: ref.id, name: ref.name, familyId: ref.familyId || ref.id, familyName: ref.familyName || ref.name, variantProperties: ref.variantProperties, propertyDefinitions: ref.propertyDefinitions });
+      if (ref) {
+        let usage = byId.get(ref.id);
+        if (!usage) {
+          usage = { id: ref.id, name: ref.name, familyId: ref.familyId || ref.id, familyName: ref.familyName || ref.name, variantProperties: ref.variantProperties, propertyDefinitions: ref.propertyDefinitions, instances: [] };
+          byId.set(ref.id, usage);
+        }
+        if (!usage.instances.some((x) => x.id === n.id)) usage.instances.push({ id: n.id, name: n.name });
       }
       n.children.forEach(walk);
     };
     walk(root);
     return Array.from(byId.values());
+  }
+  function frameStructure(n) {
+    const ref = n.componentRef;
+    const out = { id: n.id, tag: n.tag, children: n.children.map(frameStructure) };
+    if (ref) {
+      out.componentId = ref.id;
+      out.componentName = ref.name;
+      out.componentFamilyId = ref.familyId || ref.id;
+      out.componentFamilyName = ref.familyName || ref.name;
+      if (ref.variantProperties) out.variantProperties = ref.variantProperties;
+    }
+    if (n.href) out.link = true;
+    if (n.attrs && n.attrs.type) out.control = n.attrs.type;
+    return out;
   }
   function hexKey(hex) {
     const h = hex.replace("#", "");
@@ -5789,6 +5808,7 @@ ${indent}</${tag2}>`;
       nodes: count.nodes,
       assets: count.assets,
       components: usedComponents(ir),
+      structure: frameStructure(ir),
       files: Array.from(fileMap.entries()).map(([path, base64]) => ({ path, base64 })),
       notes: []
     };
