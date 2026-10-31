@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:global-design-system:schema:icons:1.0.0",
+  "title": "Global Design System Icons",
+  "description": "Detected icon inventory with confidence and usage evidence.",
+  "version": "1.0.0",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["name", "named", "kind", "size", "confidence", "usedIn", "figmaId"],
+    "properties": {
+      "name": { "type": "string", "minLength": 1 },
+      "named": { "type": "boolean" },
+      "kind": { "type": "string", "minLength": 1 },
+      "size": { "type": "string", "pattern": "^\\d+x\\d+$" },
+      "confidence": { "type": "number", "minimum": 0 },
+      "usedIn": { "type": "array", "items": { "type": "string" } },
+      "figmaId": { "type": "string", "minLength": 1 }
+    },
+    "additionalProperties": true
+  }
+}

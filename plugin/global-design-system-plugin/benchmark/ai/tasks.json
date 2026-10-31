@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "1.0.0",
+  "name": "Global Design System AI effectiveness benchmark",
+  "description": "Fixed UI-generation tasks evaluated under three package conditions. Static metrics are automated; visual and subjective ratings are separate human evidence.",
+  "conditions": [
+    { "id": "no-package", "label": "No Design System package", "purpose": "Baseline generated from the prompt without package evidence." },
+    { "id": "current", "label": "Current package", "purpose": "Package version recorded before the evaluated changes." },
+    { "id": "updated", "label": "Updated package", "purpose": "Candidate package after the evaluated changes." }
+  ],
+  "tasks": [
+    {
+      "id": "task-01-primary-action",
+      "title": "Primary action card",
+      "kind": "ui",
+      "prompt": "Create a compact primary-action card with one Button and a short heading. Use only values and components available in the supplied design-system package.",
+      "requiredEvidence": [{ "kind": "token", "category": "color" }, { "kind": "component", "familyPattern": "button" }],
+      "visualReferenceRequired": true
+    },
+    {
+      "id": "task-02-reference-reconstruction",
+      "title": "Reference reconstruction",
+      "kind": "ui",
+      "prompt": "Reconstruct the Settings screen from the package's reference evidence. Preserve composition and use only valid package components.",
+      "requiredEvidence": [{ "kind": "reference", "wildcard": true }, { "kind": "pattern", "wildcard": true }, { "kind": "component", "familyPattern": "button" }],
+      "visualReferenceRequired": true
+    },
+    {
+      "id": "task-03-dark-confirmation",
+      "title": "Dark-mode confirmation",
+      "kind": "ui",
+      "prompt": "Create a confirmation panel in the supported dark mode. Use a package color token and an existing Button variant.",
+      "requiredEvidence": [{ "kind": "mode", "name": "dark" }, { "kind": "token", "category": "color" }, { "kind": "component", "familyPattern": "button" }],
+      "visualReferenceRequired": true
+    },
+    {
+      "id": "task-04-pattern-reuse",
+      "title": "Observed pattern reuse",
+      "kind": "ui",
+      "prompt": "Create a second screen that reuses one observed reference structure without inventing a new component family.",
+      "requiredEvidence": [{ "kind": "pattern", "wildcard": true }, { "kind": "component", "familyPattern": "button" }],
+      "visualReferenceRequired": true
+    },
+    {
+      "id": "task-05-missing-component",
+      "title": "Missing component report",
+      "kind": "report",
+      "prompt": "Create a Select field. If the package has no Select component, do not invent one: report the missing component with the exact required marker and suggest the next design-system action.",
+      "requiredPhrases": ["MISSING COMPONENT", "Select"],
+      "requiredEvidence": [{ "kind": "component", "wildcard": true }],
+      "visualReferenceRequired": false
+    },
+    {
+      "id": "task-06-token-spacing",
+      "title": "Token-only spacing",
+      "kind": "ui",
+      "prompt": "Create a settings summary whose spacing, radius and colors come only from package tokens. Do not use forbidden literals or unavailable variants.",
+      "requiredEvidence": [{ "kind": "token", "category": "spacing" }, { "kind": "token", "category": "color" }],
+      "visualReferenceRequired": true
+    }
+  ],
+  "resultContract": {
+    "runFile": "run.json",
+    "taskOutputs": "Each task directory contains output.html, answer.md and usage.json. Task 05 requires answer.md; output.html is optional.",
+    "usageFile": {
+      "required": ["contextTokens", "retrievedEvidence", "filesRead"],
+      "contextTokens": "Non-negative number used as reported by the generating environment.",
+      "retrievedEvidence": "Strings such as token:--color-primary, component:set:1, pattern:pattern.x, reference:reference/Home.html and mode:dark.",
+      "filesRead": "Package-relative files supplied to or read by the model."
+    }
+  },
+  "metrics": {
+    "automated": ["UI_LITERAL_* count", "UI_TOKEN_UNDEFINED count", "UI_VARIANT_INVALID count", "UI_MODE_UNSUPPORTED count", "UI_ASSET_MISSING count", "other verifyUI errors", "required evidence retrieved", "invalid retrieval evidence", "contextTokens", "required answer phrases"],
+    "human": ["visual similarity to supplied reference (0-5)", "explicit-rule compliance (0-5)", "usability notes", "reviewer identity and timestamp"],
+    "modelAssisted": ["rubric-based visual review by a named model", "reviewer model version", "prompt and raw response retained"],
+    "separation": "Automated, human and model-assisted values must remain separate. A model-assisted score is not human approval."
+  },
+  "successRule": "No improvement is claimed unless every condition and task has generated artifacts, deterministic metrics, and the declared human visual reviews. A blocked or partial run reports missing artifacts only."
+}

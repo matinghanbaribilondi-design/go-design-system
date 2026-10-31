@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Invalid UI</title>
+  <style>
+    .bad {
+      color: #ff0000;
+      padding: 13px;
+      font-weight: 700;
+      box-shadow: 0px 4px 8px #00000040;
+      background: var(--missing-token);
+    }
+  </style>
+</head>
+<body data-theme="neon">
+  <img src="assets/missing.png" alt="Missing">
+  <a href="missing-page.html">Broken page</a>
+  <button data-component-family="Button" data-component-family-id="set:1" data-component-id="v:unknown" data-variant-size="Huge" type="button">Bad</button>
+  <button data-component-family="Button" data-component-family-id="set:1" data-component-id="v:medium" data-variant-size="Huge" type="button">Bad axis</button>
+  <section data-component-family="Ghost" data-component-family-id="set:ghost">Unknown</section>
+  <svg><rect width="24" height="24" fill="#00ff00"></rect></svg>
+</body>
+</html>

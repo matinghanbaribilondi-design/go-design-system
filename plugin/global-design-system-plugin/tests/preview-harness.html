@@ -23,11 +23,12 @@ const DISCOVER = {
   comps: [], counts: { pages: 4, collections: 2, variables: 102, styles: 27, components: 27 },
   saved: null,
   steps: [
-    { position: 0, label: 'Strict', adherence: 0, rule: 100, creative: 0, levelName: 'Strict' },
-    { position: 1, label: 'Conservative', adherence: 2, rule: 80, creative: 20, levelName: 'Faithful' },
-    { position: 2, label: 'Balanced', adherence: 5, rule: 60, creative: 40, levelName: 'Flexible' },
-    { position: 3, label: 'Creative', adherence: 7, rule: 40, creative: 60, levelName: 'Creative' },
-    { position: 4, label: 'Open', adherence: 10, rule: 20, creative: 80, levelName: 'Open' }
+    { position: 0, label: 'Strict', adherence: 0, creativity: 0, levelName: 'Strict', hardConstraints: true },
+    { position: 1, label: 'Conservative', adherence: 2, creativity: 20, levelName: 'Faithful', hardConstraints: true },
+    { position: 2, label: 'Balanced', adherence: 5, creativity: 40, levelName: 'Flexible', hardConstraints: true },
+    { position: 3, label: 'Creative', adherence: 7, creativity: 60, levelName: 'Creative', hardConstraints: true },
+    { position: 4, label: 'Advanced Creative', adherence: 9, creativity: 80, levelName: 'Bold', hardConstraints: true },
+    { position: 5, label: 'Open', adherence: 10, creativity: 100, levelName: 'Open', hardConstraints: true }
   ],
   engine: { available: true, id: 'fig-engine', version: '1.0.0', capabilities: ['frame', 'component'] }
 };

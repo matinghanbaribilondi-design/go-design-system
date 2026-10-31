@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:global-design-system:schema:components-index:1.1.0",
+  "title": "Global Design System Components Index",
+  "description": "Component/variant graph, observed reference patterns and a pointer to the canonical reference index.",
+  "version": "1.1.0",
+  "type": "object",
+  "required": ["schemaVersion", "coverage", "components", "failed", "graph", "patterns", "references"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.1.0" },
+    "engine": { "type": ["string", "null"] },
+    "coverage": {
+      "type": "object",
+      "required": ["sourceFamilies", "sourceVariants", "exportedVariants", "failedVariants"],
+      "properties": {
+        "sourceFamilies": { "type": "integer", "minimum": 0 },
+        "sourceVariants": { "type": "integer", "minimum": 0 },
+        "exportedFamilies": { "type": "integer", "minimum": 0 },
+        "exportedVariants": { "type": "integer", "minimum": 0 },
+        "failedVariants": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "components": { "type": "array", "items": { "type": "object" } },
+    "failed": { "type": "array", "items": { "type": "object" } },
+    "graph": {
+      "type": "object",
+      "required": ["families", "edges", "stats"],
+      "properties": {
+        "families": { "type": "array", "items": { "type": "object", "required": ["id", "name", "variants", "tokens", "dependencies", "instances", "extraction"] } },
+        "edges": { "type": "array", "items": { "type": "object", "required": ["from", "to", "type", "status"], "properties": { "status": { "type": "string", "enum": ["resolved", "missing", "external"] } } } },
+        "stats": { "type": "object", "required": ["families", "sourceVariants", "exportedVariants", "failedVariants", "instances", "dependencies"] }
+      }
+    },
+    "patterns": {
+      "type": "object",
+      "required": ["schemaVersion", "status", "fingerprint", "stats", "patterns"],
+      "properties": {
+        "schemaVersion": { "type": "string", "const": "1.0.0" },
+        "status": { "type": "string", "const": "Observed" },
+        "fingerprint": { "type": "object", "required": ["algorithm", "normalization", "excludes"] },
+        "stats": { "type": "object", "required": ["references", "patterns", "repeatedPatterns", "groupedReferences", "singletonPatterns"] },
+        "patterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "fingerprint", "status", "structure", "occurrences", "exceptions", "limitations"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^pattern\\.[a-z0-9-]+$" },
+              "fingerprint": { "type": "string", "pattern": "^structure-v1:[a-z0-9-]+$" },
+              "status": { "type": "string", "const": "Observed" },
+              "occurrences": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["referenceId", "file", "evidenceLevel", "nodes", "components"],
+                  "properties": {
+                    "evidenceLevel": { "type": "string", "enum": ["figma-ir", "reference-html"] },
+                    "file": { "type": "string", "pattern": "^reference/" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "references": {
+      "type": "object",
+      "required": ["schemaVersion", "status", "index", "stats"],
+      "properties": {
+        "schemaVersion": { "type": "string", "const": "1.0.0" },
+        "status": { "type": "string", "const": "Observed" },
+        "index": { "type": ["string", "null"], "enum": ["reference/index.json", null] },
+        "stats": { "type": "object", "required": ["references", "pages", "withComponents", "withLinks", "resolvedLinks", "unresolvedLinks"] }
+      }
+    }
+  },
+  "additionalProperties": true
+}

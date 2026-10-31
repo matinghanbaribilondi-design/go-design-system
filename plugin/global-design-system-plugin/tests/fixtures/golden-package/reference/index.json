@@ -1,0 +1,163 @@
+{
+  "schemaVersion": "1.0.0",
+  "status": "Observed",
+  "role": "source-evidence-index",
+  "cssMode": {
+    "requested": "standalone",
+    "resolved": "standalone",
+    "active": false,
+    "fallback": null
+  },
+  "classification": {
+    "sourceEvidence": [
+      "reference/Home.html",
+      "reference/Settings.html"
+    ],
+    "generatedGuides": [],
+    "note": "Reference HTML is extracted source evidence. No generated-guide artifacts are currently produced in reference/."
+  },
+  "stats": {
+    "references": 2,
+    "pages": 1,
+    "withComponents": 2,
+    "withLinks": 1,
+    "resolvedLinks": 1,
+    "unresolvedLinks": 0
+  },
+  "entries": [
+    {
+      "id": "fr:1",
+      "name": "Home",
+      "page": "Screens",
+      "file": "reference/Home.html",
+      "title": "Home",
+      "tags": [],
+      "tagStatus": "not-provided-by-source",
+      "width": 390,
+      "height": 844,
+      "nodes": 2,
+      "engine": "fig-engine@1.0.0",
+      "rtl": false,
+      "modes": [
+        "Dark",
+        "Light"
+      ],
+      "patterns": [
+        {
+          "id": "pattern.qp1xp1-1t7zo0f-3j",
+          "fingerprint": "structure-v1:qp1xp1-1t7zo0f-3j",
+          "status": "Observed",
+          "evidenceLevel": "figma-ir",
+          "rootTags": [
+            "div"
+          ]
+        }
+      ],
+      "components": [
+        {
+          "id": "v:medium",
+          "familyId": "set:1",
+          "name": "Size=Medium",
+          "instanceId": "i:1",
+          "variantProperties": {
+            "Size": "Medium"
+          }
+        }
+      ],
+      "componentIds": [
+        "v:medium"
+      ],
+      "familyIds": [
+        "set:1"
+      ],
+      "vars": [
+        "--color-primary"
+      ],
+      "links": [
+        {
+          "destinationId": "fr:2",
+          "status": "resolved",
+          "file": "reference/Settings.html"
+        }
+      ],
+      "structureSummary": {
+        "rootTags": [
+          "div"
+        ],
+        "componentInstances": 1,
+        "patternIds": [
+          "pattern.qp1xp1-1t7zo0f-3j"
+        ]
+      },
+      "extraction": {
+        "status": "complete",
+        "evidenceLevel": "figma-ir",
+        "limitations": []
+      }
+    },
+    {
+      "id": "fr:2",
+      "name": "Settings",
+      "page": "Screens",
+      "file": "reference/Settings.html",
+      "title": "Settings",
+      "tags": [],
+      "tagStatus": "not-provided-by-source",
+      "width": 1440,
+      "height": 844,
+      "nodes": 2,
+      "engine": "fig-engine@1.0.0",
+      "rtl": false,
+      "modes": [
+        "Dark",
+        "Light"
+      ],
+      "patterns": [
+        {
+          "id": "pattern.qp1xp1-1t7zo0f-3j",
+          "fingerprint": "structure-v1:qp1xp1-1t7zo0f-3j",
+          "status": "Observed",
+          "evidenceLevel": "figma-ir",
+          "rootTags": [
+            "div"
+          ]
+        }
+      ],
+      "components": [
+        {
+          "id": "v:medium",
+          "familyId": "set:1",
+          "name": "Size=Medium",
+          "instanceId": "i:2",
+          "variantProperties": {
+            "Size": "Medium"
+          }
+        }
+      ],
+      "componentIds": [
+        "v:medium"
+      ],
+      "familyIds": [
+        "set:1"
+      ],
+      "vars": [
+        "--color-primary"
+      ],
+      "links": [],
+      "structureSummary": {
+        "rootTags": [
+          "div"
+        ],
+        "componentInstances": 1,
+        "patternIds": [
+          "pattern.qp1xp1-1t7zo0f-3j"
+        ]
+      },
+      "extraction": {
+        "status": "complete",
+        "evidenceLevel": "figma-ir",
+        "limitations": []
+      }
+    }
+  ]
+}

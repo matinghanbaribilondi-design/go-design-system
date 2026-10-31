@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:global-design-system:schema:validation-report:1.0.0",
+  "title": "Global Design System Validation Report",
+  "description": "Structured source findings, weighted dimensions and package-quality findings.",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["issues", "dims", "overall", "errors", "warnings", "info", "packageQuality", "packageFindings", "packageErrorCount", "packageWarningCount"],
+  "properties": {
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "severity", "entityId", "message", "recovery"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1 },
+          "severity": { "type": "string", "enum": ["error", "warning", "info"] },
+          "entityId": { "type": "string" },
+          "message": { "type": "string", "minLength": 1 },
+          "recovery": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "dims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "w", "score", "basis"],
+        "properties": {
+          "name": { "type": "string" },
+          "w": { "type": "number", "minimum": 0 },
+          "score": { "type": "number", "minimum": 0 },
+          "basis": { "type": "string" }
+        }
+      }
+    },
+    "overall": { "type": ["number", "null"] },
+    "errors": { "type": "integer", "minimum": 0 },
+    "warnings": { "type": "integer", "minimum": 0 },
+    "info": { "type": "integer", "minimum": 0 },
+    "packageQuality": { "type": "integer", "minimum": 0 },
+    "packageErrorCount": { "type": "integer", "minimum": 0 },
+    "packageWarningCount": { "type": "integer", "minimum": 0 },
+    "packageFindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "severity", "file", "location", "message", "recovery"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["error", "warning", "info"] },
+          "file": { "type": "string", "minLength": 1 },
+          "location": { "type": "string" }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

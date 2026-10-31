@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:global-design-system:schema:manifest:3.0.0",
+  "title": "Global Design System Manifest",
+  "description": "Machine index of extracted entities, counts and validation status for one exported package.",
+  "version": "3.0.0",
+  "type": "object",
+  "required": ["formatVersion", "packageType", "generatorVersion", "source", "scope", "capabilities", "inventory", "dependencies", "limitations", "entities", "stats", "outputs", "validation"],
+  "properties": {
+    "formatVersion": { "type": "string", "const": "3.0.0" },
+    "packageType": { "type": "string", "const": "global-design-system" },
+    "generatorVersion": { "type": "string", "minLength": 1 },
+    "source": {
+      "type": "object",
+      "required": ["type", "name", "fileKey", "fileKeyStatus"],
+      "properties": {
+        "type": { "type": "string", "enum": ["figma"] },
+        "name": { "type": "string", "minLength": 1 },
+        "fileKey": { "type": ["string", "null"] },
+        "fileKeyStatus": { "type": "string", "enum": ["available", "unavailable"] }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "required": ["pages", "styles", "icons", "referenceFrames"],
+      "properties": {
+        "pages": { "type": "array", "items": { "type": "string" } },
+        "pageIds": { "type": ["array", "null"], "items": { "type": "string" } },
+        "collections": { "type": "array", "items": { "type": "object", "required": ["name", "modes"] } },
+        "collectionIds": { "type": ["array", "null"], "items": { "type": "string" } },
+        "categories": { "type": ["array", "null"], "items": { "type": "string" } },
+        "styles": { "type": "boolean" },
+        "icons": { "type": "boolean" },
+        "referenceFrames": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "required": ["tokens", "components", "references", "patterns", "validation"],
+      "properties": {
+        "tokens": { "type": "object", "required": ["status", "coverage"], "properties": { "status": { "type": "string", "enum": ["supported", "partial", "empty", "failed", "unavailable"] } } },
+        "components": { "type": "object", "required": ["status", "coverage"], "properties": { "status": { "type": "string", "enum": ["supported", "partial", "empty", "failed", "unavailable"] } } },
+        "references": { "type": "object", "required": ["status", "coverage"], "properties": { "status": { "type": "string", "enum": ["supported", "partial", "empty", "failed", "unavailable"] } } },
+        "patterns": { "type": "object", "required": ["status", "coverage"], "properties": { "status": { "type": "string", "enum": ["supported", "partial", "empty", "failed", "unavailable"] } } },
+        "validation": { "type": "object", "required": ["status", "reportPath"] }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "required": ["external", "bundledAssets", "bundledFonts"],
+      "properties": {
+        "external": { "type": "array", "items": { "type": "object", "required": ["kind", "name", "source", "status"], "properties": { "status": { "type": "string", "enum": ["not-bundled", "declared"] } } } },
+        "bundledAssets": { "type": "array", "items": { "type": "object", "required": ["path", "kind"] } },
+        "bundledFonts": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "limitations": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "inventory": {
+      "type": "object",
+      "required": ["tokens", "components", "componentVariants", "references", "patterns"],
+      "properties": {
+        "tokens": { "type": "integer", "minimum": 0 },
+        "components": { "type": "integer", "minimum": 0 },
+        "componentVariants": { "type": "integer", "minimum": 0 },
+        "references": { "type": "integer", "minimum": 0 },
+        "patterns": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "entities": { "type": "object" },
+    "stats": {
+      "type": "object",
+      "required": ["tokens", "patterns", "references"],
+      "properties": {
+        "tokens": { "type": "object" },
+        "patterns": { "type": "object" },
+        "references": { "type": "object" }
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "required": ["algorithm", "excluded", "files"],
+      "properties": {
+        "algorithm": { "type": "string", "const": "fnv1a32-dual+length" },
+        "excluded": { "type": "array", "items": { "type": "object", "required": ["path", "reason"] } },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "binary", "length", "fingerprint"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "binary": { "type": "boolean" },
+              "length": { "type": "integer", "minimum": 0 },
+              "fingerprint": { "type": "string", "pattern": "^fnv1a32-dual:" }
+            }
+          }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": ["status", "errorCount", "warningCount", "reportPath"],
+      "properties": {
+        "status": { "type": "string", "enum": ["pass", "warning", "error"] },
+        "errorCount": { "type": "integer", "minimum": 0 },
+        "warningCount": { "type": "integer", "minimum": 0 },
+        "reportPath": { "type": "string", "const": "validation-report.json" }
+      }
+    }
+  },
+  "additionalProperties": true
+}

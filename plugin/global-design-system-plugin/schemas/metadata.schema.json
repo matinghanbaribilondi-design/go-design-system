@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:global-design-system:schema:metadata:1.0.0",
+  "title": "Global Design System Package Metadata",
+  "description": "Generation provenance for an exported package.",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["schemaVersion", "generatorVersion", "generatedAt", "source", "scopePages", "mode", "packageQuality"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0.0" },
+    "generatorVersion": { "type": "string", "minLength": 1 },
+    "generatedAt": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T" },
+    "source": { "type": "string", "enum": ["figma"] },
+    "sourceFileName": { "type": "string" },
+    "scopePages": { "type": "array", "items": { "type": "string" } },
+    "mode": { "type": "string", "enum": ["minimal", "standard", "full", "agent"] },
+    "packageQuality": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": true
+}

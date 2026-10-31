@@ -1,0 +1,23 @@
+:root {
+  --ui-inline-space: var(--spacing-16);
+}
+
+.screen {
+  display: flex;
+  gap: var(--ui-inline-space);
+  padding: var(--spacing-16);
+  color: var(--color-primary);
+  background: var(--color-primary, #fff);
+  border-radius: var(--spacing-16);
+  width: 390px;
+}
+
+.decor {
+  background: transparent;
+  color: currentColor;
+  border: 0;
+  margin: 0;
+  font-family: inherit;
+  box-shadow: none;
+  fill: url(#fade);
+}

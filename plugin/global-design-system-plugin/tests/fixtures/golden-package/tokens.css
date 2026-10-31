@@ -1,0 +1,31 @@
+/* tokens.css — generated from the Figma file "Golden UI"
+ * Rules: see design.md > "Rules for AI agents". Use ONLY the variables and .text-* classes below, written exactly.
+ * If a value is missing, follow ai-control.md for the current adherence level. Comments show the exact Figma names. */
+
+:root {
+  /* Theme */
+  --color-blue-600: #3F6FB5; /* Color/Blue/600 */
+  --color-primary: var(--color-blue-600); /* Color/Primary */
+  --size-medium: 40px; /* Size/Medium */
+  --spacing-16: 16px; /* Spacing/16 */
+
+  /* text style: Heading/H1 */
+  --text-heading-h1-family: "Inter";
+  --text-heading-h1-size: 32px;
+  --text-heading-h1-weight: 700;
+  --text-heading-h1-line-height: 40px;
+  --text-heading-h1-letter-spacing: -0.02em;
+}
+
+[data-theme="dark"] { /* mode: Dark */
+  --color-blue-600: #6B9BE0;
+}
+
+/* ---- Text styles ---- */
+.text-heading-h1 { /* Heading/H1 */
+  font-family: var(--text-heading-h1-family);
+  font-size: var(--text-heading-h1-size);
+  font-weight: var(--text-heading-h1-weight);
+  line-height: var(--text-heading-h1-line-height);
+  letter-spacing: var(--text-heading-h1-letter-spacing);
+}

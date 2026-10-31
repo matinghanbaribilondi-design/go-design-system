@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:global-design-system:schema:reference-index:1.0.0",
+  "title": "Global Design System Reference Index",
+  "description": "Canonical source-evidence index for standalone or shared Reference HTML.",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["schemaVersion", "status", "role", "cssMode", "classification", "stats", "entries"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0.0" },
+    "status": { "type": "string", "const": "Observed" },
+    "role": { "type": "string", "const": "source-evidence-index" },
+    "cssMode": {
+      "type": "object",
+      "required": ["requested", "resolved", "active", "fallback"],
+      "properties": {
+        "requested": { "type": "string", "enum": ["standalone", "shared"] },
+        "resolved": { "type": "string", "enum": ["standalone", "shared"] },
+        "active": { "type": "boolean" },
+        "fallback": { "type": ["string", "null"] }
+      }
+    },
+    "classification": {
+      "type": "object",
+      "required": ["sourceEvidence", "generatedGuides", "note"],
+      "properties": {
+        "sourceEvidence": { "type": "array", "items": { "type": "string", "pattern": "^reference/" } },
+        "generatedGuides": { "type": "array", "items": { "type": "string" } },
+        "note": { "type": "string", "minLength": 1 }
+      }
+    },
+    "stats": { "type": "object", "required": ["references", "pages", "withComponents", "withLinks", "resolvedLinks", "unresolvedLinks"] },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "page", "file", "title", "tags", "tagStatus", "modes", "width", "height", "patterns", "components", "vars", "links", "structureSummary", "extraction"],
+        "properties": {
+          "file": { "type": "string", "pattern": "^reference/" },
+          "title": { "type": "string", "minLength": 1 },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "tagStatus": { "type": "string", "enum": ["not-provided-by-source"] },
+          "modes": { "type": "array", "items": { "type": "string" } },
+          "structureSummary": { "type": "object", "required": ["rootTags", "componentInstances", "patternIds"] },
+          "extraction": { "type": "object", "required": ["status", "evidenceLevel", "limitations"], "properties": { "status": { "type": "string", "enum": ["complete", "partial"] }, "evidenceLevel": { "type": "string", "enum": ["figma-ir", "reference-html", "unknown"] } } },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["destinationId", "status"],
+              "properties": {
+                "status": { "type": "string", "enum": ["resolved", "unresolved-in-package"] },
+                "file": { "type": ["string", "null"] }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

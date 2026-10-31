@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:global-design-system:schema:token-map:1.0.0",
+  "title": "Global Design System Token Map",
+  "description": "Canonical token accounting with collection, mode, alias and CSS emission status.",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["schemaVersion", "source", "stats", "collections", "tokens"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0.0" },
+    "source": {
+      "type": "object",
+      "required": ["type", "fileName"],
+      "properties": {
+        "type": { "type": "string", "enum": ["figma"] },
+        "fileName": { "type": "string", "minLength": 1 }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "required": ["sourceTokens", "aliasTokens", "modeValues", "cssVariables", "notEmitted", "ambiguousValues"],
+      "properties": {
+        "sourceTokens": { "type": "integer", "minimum": 0 },
+        "aliasTokens": { "type": "integer", "minimum": 0 },
+        "modeValues": {
+          "type": "object",
+          "required": ["total", "resolved", "unresolved", "circular", "invalid"],
+          "properties": {
+            "total": { "type": "integer", "minimum": 0 },
+            "resolved": { "type": "integer", "minimum": 0 },
+            "unresolved": { "type": "integer", "minimum": 0 },
+            "circular": { "type": "integer", "minimum": 0 },
+            "invalid": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "cssVariables": { "type": "integer", "minimum": 0 },
+        "notEmitted": { "type": "integer", "minimum": 0 },
+        "ambiguousValues": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "collections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "defaultMode", "modes"],
+        "properties": {
+          "id": { "type": ["string", "null"] },
+          "name": { "type": "string", "minLength": 1 },
+          "defaultMode": { "type": "string", "minLength": 1 },
+          "modes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "status"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "id": { "type": ["string", "null"] },
+                "theme": { "type": ["string", "null"] },
+                "status": { "type": "string", "enum": ["mapped"] }
+              }
+            }
+          }
+        }
+      }
+    },
+    "tokens": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "figmaId", "name", "type", "collection", "cssVar", "cssEmitted", "status", "modes"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "figmaId": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "type": { "type": "string", "minLength": 1 },
+          "collection": { "type": "string" },
+          "collectionId": { "type": ["string", "null"] },
+          "defaultMode": { "type": ["string", "null"] },
+          "cssVar": { "type": "string", "pattern": "^--[a-z0-9-]+$" },
+          "cssEmitted": { "type": "boolean" },
+          "role": { "type": "string" },
+          "roleStatus": { "type": "string", "enum": ["observed", "inferred"] },
+          "origin": { "type": "string", "enum": ["selection", "dependency"] },
+          "requiredBy": { "type": "array", "items": { "type": "string" } },
+          "usedBy": { "type": "array", "items": { "type": "string" } },
+          "status": { "type": "string", "enum": ["resolved", "unresolved"] },
+          "modes": { "type": "object" }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,4 +1,4 @@
-// Global Design System — Figma <-> design.md compiler (v0.2, step-by-step)
+// Global Design System — one-way Figma -> design-system package exporter
 // Flow: Discover -> Scope -> Sections -> Variables -> Components -> Dependencies -> Extract -> Review -> Generate
 if (typeof figma !== 'undefined') {
   figma.showUI(__html__, { width: 920, height: 720 });
@@ -18,6 +18,9 @@ const hex = c => '#' + [c.r, c.g, c.b].map(x => Math.round(x * 255).toString(16)
   (c.a !== undefined && c.a < 1 ? Math.round(c.a * 255).toString(16).padStart(2, '0').toUpperCase() : '');
 const rgb = h => { h = h.replace('#', ''); return { r: parseInt(h.slice(0, 2), 16) / 255, g: parseInt(h.slice(2, 4), 16) / 255, b: parseInt(h.slice(4, 6), 16) / 255, a: h.length >= 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1 }; };
 let MODEL = null, DISC = null;
+const GENERATOR_VERSION = '0.10.0';
+const figmaFileKey = () => { try { return typeof figma !== 'undefined' && typeof figma.fileKey === 'string' && figma.fileKey ? figma.fileKey : null; } catch (e) { return null; } };
+const contentFingerprint = s => { const x = String(s || ''); return 'fnv1a32-dual:' + nameHash(x) + '-' + nameHash('\u0000' + x) + '-' + x.length.toString(36); };
 
 // ---------- Token helpers ----------
 function fmt(val, type) {
@@ -260,7 +263,7 @@ function tokenMapData(M, tokens, N, css) {
   const values = tokens.reduce((a, t) => a.concat(Object.values(t.modes)), []), count = status => values.filter(r => r.status === status).length;
   const stats = { sourceTokens: tokens.length, aliasTokens: tokens.filter(t => Object.values(t.modes).some(r => r.aliasId || (r.chain || []).length)).length, modeValues: { total: values.length, resolved: count('resolved'), unresolved: count('unresolved'), circular: count('circular'), invalid: count('invalid') }, cssVariables: rows.filter(t => t.cssEmitted).length, notEmitted: rows.filter(t => !t.cssEmitted).length, ambiguousValues: valueMatchIssues(tokens).length };
   const collections = (M.collections || []).map(c => ({ id: c.id || null, name: c.name, defaultMode: c.defaultMode || (c.modes || [])[0] || null, modes: (c.modes || []).map((m, i) => ({ name: m, id: c.modeMap && c.modeMap[m] || null, theme: i === 0 ? null : styleSlug(m), status: 'mapped' })) }));
-  return { source: { type: 'figma', fileName: M.fileName }, stats, collections, tokens: rows };
+  return { schemaVersion: '1.0.0', source: { type: 'figma', fileName: M.fileName }, stats, collections, tokens: rows };
 }
 function componentGraphData(M, rows, failed) {
   rows = rows || []; failed = failed || [];
@@ -394,23 +397,33 @@ function patternData(M) {
   const stats = { references: patterns.reduce((n, p) => n + p.occurrences.length, 0), patterns: patterns.length, repeatedPatterns: patterns.filter(p => p.occurrences.length > 1).length, groupedReferences: patterns.reduce((n, p) => n + (p.occurrences.length > 1 ? p.occurrences.length : 0), 0), singletonPatterns: patterns.filter(p => p.occurrences.length === 1).length };
   return { schemaVersion: '1.0.0', status: 'Observed', fingerprint: { algorithm: 'dual-fnv1a32-length', normalization: 'html-structure-v1', excludes: ['text content', 'generated class names', 'inline styles', 'Figma node IDs', 'component variant values'] }, limitations: ['Patterns describe observed HTML structure, not inferred semantic intent or visual similarity.'], stats, patterns };
 }
-function referenceIndexData(M, observed) {
+function referenceIndexData(M, observed, cssMode) {
   const refs = refFileNames(M), targets = Object.fromEntries(refs.map(r => [r.id, r])), byRef = {};
   (observed.patterns || []).forEach(p => p.occurrences.forEach(o => {
-    const row = byRef[o.referenceId] || (byRef[o.referenceId] = { patterns: [], components: [] });
-    row.patterns.push({ id: p.id, fingerprint: p.fingerprint, status: p.status });
+    const row = byRef[o.referenceId] || (byRef[o.referenceId] = { patterns: [], components: [], rootTags: [], limitations: [] });
+    row.patterns.push({ id: p.id, fingerprint: p.fingerprint, status: p.status, evidenceLevel: o.evidenceLevel, rootTags: (p.structure || []).map(n => n.tag) });
     row.components.push(...(o.components || []));
+    row.rootTags.push(...(p.structure || []).map(n => n.tag));
+    row.limitations.push(...(p.limitations || []));
   }));
+  const modes = [...new Set((M.collections || []).reduce((all, c) => all.concat(c.modes || []), []))].sort();
   const entries = refs.map(r => {
-    const found = byRef[r.id] || { patterns: [], components: [] }, components = found.components.map(c => ({ id: c.componentId, familyId: c.familyId, name: c.name, instanceId: c.instanceId, variantProperties: sortedPatternProps(c.variantProperties) })).sort((a, b) => String(a.familyId || '').localeCompare(String(b.familyId || '')) || String(a.id || '').localeCompare(String(b.id || '')) || String(a.instanceId || '').localeCompare(String(b.instanceId || '')));
+    const found = byRef[r.id] || { patterns: [], components: [], rootTags: [], limitations: [] }, components = found.components.map(c => ({ id: c.componentId, familyId: c.familyId, name: c.name, instanceId: c.instanceId, variantProperties: sortedPatternProps(c.variantProperties) })).sort((a, b) => String(a.familyId || '').localeCompare(String(b.familyId || '')) || String(a.id || '').localeCompare(String(b.id || '')) || String(a.instanceId || '').localeCompare(String(b.instanceId || '')));
     const links = [...new Set(r.links || [])].sort().map(id => {
       const target = targets[id];
       return { destinationId: id, status: target ? 'resolved' : 'unresolved-in-package', file: target ? 'reference/' + target.file : null };
     });
-    return { id: r.id, name: r.name, page: r.page, file: 'reference/' + r.file, width: r.w, height: r.h, nodes: r.nodes, engine: r.engine || 'unknown', rtl: r.rtl === true, patterns: found.patterns.sort((a, b) => a.id.localeCompare(b.id)), components, componentIds: [...new Set(components.map(c => c.id).filter(Boolean))].sort(), familyIds: [...new Set(components.map(c => c.familyId).filter(Boolean))].sort(), vars: [...new Set(r.vars || [])].sort(), links };
+    const patterns = found.patterns.sort((a, b) => a.id.localeCompare(b.id)), limitations = found.limitations.concat(r.truncated ? ['Reference HTML is truncated.'] : []).sort();
+    return {
+      id: r.id, name: r.name, page: r.page, file: 'reference/' + r.file, title: r.name, tags: [], tagStatus: 'not-provided-by-source',
+      width: r.w, height: r.h, nodes: r.nodes, engine: r.engine || 'unknown', rtl: r.rtl === true, modes,
+      patterns, components, componentIds: [...new Set(components.map(c => c.id).filter(Boolean))].sort(), familyIds: [...new Set(components.map(c => c.familyId).filter(Boolean))].sort(), vars: [...new Set(r.vars || [])].sort(), links,
+      structureSummary: { rootTags: [...new Set(found.rootTags)].sort(), componentInstances: components.length, patternIds: patterns.map(p => p.id) },
+      extraction: { status: r.truncated ? 'partial' : 'complete', evidenceLevel: patterns.length ? (patterns.every(p => p.evidenceLevel === 'figma-ir') ? 'figma-ir' : 'reference-html') : 'unknown', limitations }
+    };
   }).sort((a, b) => a.file.localeCompare(b.file) || a.id.localeCompare(b.id));
   const stats = { references: entries.length, pages: new Set(entries.map(e => e.page)).size, withComponents: entries.filter(e => e.components.length).length, withLinks: entries.filter(e => e.links.length).length, resolvedLinks: entries.reduce((n, e) => n + e.links.filter(l => l.status === 'resolved').length, 0), unresolvedLinks: entries.reduce((n, e) => n + e.links.filter(l => l.status !== 'resolved').length, 0) };
-  return { schemaVersion: '1.0.0', status: 'Observed', stats, entries };
+  return { schemaVersion: '1.0.0', status: 'Observed', role: 'source-evidence-index', cssMode: cssMode || { requested: M.refCss || 'standalone', resolved: 'standalone', active: false, fallback: 'not evaluated' }, classification: { sourceEvidence: entries.map(e => e.file), generatedGuides: [], note: 'Reference HTML is extracted source evidence. No generated-guide artifacts are currently produced in reference/.' }, stats, entries };
 }
 
 // ---------- Reference HTML documents (pure assembly) ----------
@@ -443,24 +456,32 @@ function refFileNames(M) {
 function frameLinks(body, targets) {
   return body.replace(/data-go="([^"]+)"/g, (m, id) => (targets[id] ? 'data-go="' + targets[id] + '"' : m));
 }
-/** One frame, one HTML file: nothing but the frame and the CSS it needs. */
-function refDoc(M, r, vars) {
+/** One frame, one HTML file. Standalone inlines used tokens; Shared links the canonical tokens.css. */
+function refDoc(M, r, vars, shared) {
   const fonts = r.fonts || {}, targets = {};
   refFileNames(M).forEach(x => { targets[x.id] = x.file; });
   const custom = Object.keys(fonts).filter(f => !isGoogleFont(f)).sort();
   const own = {}; custom.forEach(f => { own[f] = fonts[f]; });
+  const tokenCss = shared && shared.active ? '<link rel="stylesheet" href="../tokens.css">\n' : '';
   return '<!doctype html>\n<html lang="en"' + (r.rtl ? ' dir="rtl"' : '') + '>\n<head>\n<meta charset="utf-8">\n' +
-    '<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>' + escH(r.name) + '</title>\n' + fontsLink(fonts) +
-    '<!-- Figma frame "' + escH(r.name) + '" (' + escH(r.page) + ') · ' + r.w + '×' + r.h + ' px · rendered by ' + escH(r.engine || 'the HTML engine') + '. Values come from the token variables below; see tokens.css. -->\n' +
-    '<style>\n' + vars + '\n' + REF_CSS + '\n' + (r.css || '') + '\n' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>' + escH(r.name) + '</title>\n' + fontsLink(fonts) + tokenCss +
+    '<!-- Figma frame "' + escH(r.name) + '" (' + escH(r.page) + ') · ' + r.w + '×' + r.h + ' px · rendered by ' + escH(r.engine || 'the HTML engine') + '. ' + (shared && shared.active ? 'Shared token CSS: ../tokens.css.' : 'Standalone token CSS is inlined below.') + (shared && shared.fallback ? ' Requested Shared mode fell back: ' + escH(shared.fallback) : '') + ' -->\n' +
+    '<style>\n' + (shared && shared.active ? '' : vars + '\n') + REF_CSS + '\n' + (r.css || '') + '\n' +
     (custom.length ? '/* Custom fonts are not on Google Fonts: drop ' + custom.map(f => '"' + f + '.woff2"').join(', ') + ' into a fonts/ folder next to this file. */\n' + fontsCss(own) + '\n' : '') +
     '</style>\n</head>\n<body>\n' + frameLinks(r.body, targets) + '\n</body>\n</html>\n';
 }
-function referenceFiles(M, toks) {
-  const files = [], refs = refFileNames(M), embed = !!M.refEmbed, bin = new Map();
+function referenceCssMode(M, toks) {
+  if (M.refCss !== 'shared') return { requested: 'standalone', resolved: 'standalone', active: false, fallback: null };
+  const css = tokensCss(M, toks).content, defined = new Set(css.match(/--[\w-]+(?=\s*:)/g) || []), missing = [...new Set((M.refs || []).reduce((all, r) => all.concat(r.vars || []), []).filter(v => !defined.has(v)))];
+  if (!(M.tokens || []).length && !(M.styles && (M.styles.text.length || M.styles.paint.length || M.styles.effect.length)) && !(M.enriched && M.enriched.derived.length)) return { requested: 'shared', resolved: 'standalone', active: false, fallback: 'tokens.css is not generated for this package' };
+  if (missing.length) return { requested: 'shared', resolved: 'standalone', active: false, fallback: 'used variables are not defined in tokens.css: ' + missing.join(', ') };
+  return { requested: 'shared', resolved: 'shared', active: true, fallback: null };
+}
+function referenceFiles(M, toks, sharedMode) {
+  const files = [], refs = refFileNames(M), embed = !!M.refEmbed, bin = new Map(), shared = sharedMode || referenceCssMode(M, toks);
   refs.forEach(r => {
     if (!embed) (r.files || []).forEach(f => bin.set(f.path, f.base64));
-    files.push({ path: 'reference/' + r.file, content: refDoc(M, r, tokensCss(M, toks, new Set(r.vars || [])).content), tier: 0 });
+    files.push({ path: 'reference/' + r.file, content: refDoc(M, r, tokensCss(M, toks, new Set(r.vars || [])).content, shared), tier: 0 });
   });
   bin.forEach((b64, p) => files.push({ path: 'reference/' + p, content: b64, binary: true, tier: 0 }));
   return files;
@@ -481,19 +502,21 @@ const LEVELS = [
   ['Open', 'Maximum creative freedom: treat the system as a visual language and propose new tokens, components and patterns.', 'Write a literal value inline. Every value is a token or a named proposed token.', 'Add it to a "Proposed tokens" list (name, value, reason) and reference it by that name.']
 ];
 const clampLevel = n => Math.max(0, Math.min(10, Math.round(Number(n))) || 0);
-/** The slider's five positions, each mapped to a real level of ai-control.md. */
-const CREATIVITY_STEPS = [['Strict', 0, 100], ['Conservative', 2, 80], ['Balanced', 5, 60], ['Creative', 7, 40], ['Open', 10, 20]];
+/** Six approved UI levels map to internal ai-control levels; percentages express exploration, never rule probability. */
+const CREATIVITY_STEPS = [['Strict', 0, 0], ['Conservative', 2, 20], ['Balanced', 5, 40], ['Creative', 7, 60], ['Advanced Creative', 9, 80], ['Open', 10, 100]];
 function levelPicker() {
   return CREATIVITY_STEPS.map((s, position) => ({
-    position, label: s[0], adherence: s[1], rule: s[2], creative: 100 - s[2], levelName: LEVELS[s[1]][0]
+    position, label: s[0], adherence: s[1], creativity: s[2], levelName: LEVELS[s[1]][0], hardConstraints: true
   }));
 }
+const uiLevelTable = () => tbl(['UI level', 'Name', 'Creative exploration', 'Internal adherence_level'], CREATIVITY_STEPS.map((s, i) => [i, s[0], s[2] + '%', s[1]]));
 function levelLine(n) { const L = LEVELS[clampLevel(n)]; return 'Level ' + clampLevel(n) + ' — ' + L[0] + '. You may: ' + L[1] + ' You must not: ' + L[2] + ' If something is missing: ' + L[3]; }
 function aiControlMd(level) {
   const n = clampLevel(level), L = LEVELS[n];
   return '---\nadherence_level: ' + n + '\n---\n# AI Control — adherence to the design system\n\nAdherence goes from 0 (follow the rules exactly) to 10 (maximum creative freedom). **Change the number above to change the behavior.** You can also tell the AI: "set adherence_level to 7".\n\n' +
     '## How to use (for AI agents)\n\n1. At the start of every task, read `adherence_level` from the front matter above. Re-read it every time; the user may have changed it.\n2. Apply the "Always" rules and the behavior of the current level.\n3. End your answer with `Adherence level used: N`.\n\n' +
-    '## Always (every level)\n\n- Never write a literal color, size, spacing, radius, shadow or font value. Use `var(--name)` from tokens.css and the `.text-*` classes.\n- Never edit tokens.css or the Figma variables and styles.\n- Never use a font, text style or icon that is not in the system. Creativity lives in composition, hierarchy and structure, not in hand-set styles.\n- Creativity never changes how values are written: every value stays a token (or a named proposed token at levels 6–10).\n\n' +
+    '## UI creativity levels\n\n' + uiLevelTable() + '\nCreative exploration is not a probability of obeying rules. Hard constraints stay mandatory at every level.\n\n' +
+    '## Always (every level)\n\n- Never write a literal color, size, spacing, radius, shadow or font value. Use `var(--name)` from tokens.css and the `.text-*` classes.\n- Never edit tokens.css or the Figma variables and styles.\n- Never use a font, text style or icon that is not in the system. Creativity lives in composition, hierarchy and structure, not in hand-set styles.\n- Hard constraints never relax: every token, component, variant and mode must exist in the package. Unsupported values or modes are reported, not invented.\n- Creativity never changes how values are written: every value stays a token (or a named proposed token at levels 6–10).\n\n' +
     '## Current level: ' + n + ' — ' + L[0] + '\n\n- You may: ' + L[1] + '\n- You must not: ' + L[2] + '\n- If something is missing: ' + L[3] + '\n\n' +
     '## All levels\n\n' + tbl(['Level', 'Name', 'You may', 'You must not', 'If something is missing'], LEVELS.map((x, i) => [i, x[0], x[1], x[2], x[3]]));
 }
@@ -501,9 +524,10 @@ function aiControlMd(level) {
 function skillMd(M, X) {
   const comps = M.components || [], refs = M.refs || [], html = (M.componentHtml && M.componentHtml.ok) || [];
   const files = ['`design.md` — rules and overview', '`tokens.css` — every value', '`components.css` + `components/*.html` — component markup and spec', '`components/index.json` — component graph, observed patterns and reference index'];
-  if (refs.length) files.push('`reference/*.html` — one file per frame, that frame only');
+  if (refs.length) files.push('`reference/index.json` + `reference/*.html` — canonical source-evidence index and one standalone/shared frame file');
   files.push('`manifest.json` — sources, entities and outputs');
-  const retrieval = refs.length ? '## Contextual retrieval\n\n1. Start in `components/index.json`; do not open every reference. Filter `references.entries` by page, frame name, viewport, component/family ID, variant properties, token variable or pattern ID.\n2. Open only the selected entry\'s `file`. For a component task, read its family/variant in `graph` and its canonical HTML before opening composition evidence.\n3. For layout reuse, select a pattern, read its normalized `structure`, then open only relevant occurrences. Apply every viewport or component-variant exception; never turn an observed structure into an inferred semantic rule.\n4. Follow only links whose status is `resolved`. `unresolved-in-package` names a destination that is not available as package evidence.\n5. Use `tokens.css` for values and component HTML for canonical markup; references provide composition evidence only.\n\n' : '';
+  const retrieval = refs.length ? '## Contextual retrieval\n\n1. Start in `reference/index.json`; `components/index.json.references` is only a pointer to it. Filter `entries` by page, frame name, viewport, component/family ID, variant properties, token variable or pattern ID. Do not open every reference.\n2. Open only the selected entry\'s `file`. For a component task, read its family/variant in `components/index.json.graph` and its canonical HTML before opening composition evidence.\n3. For layout reuse, select a pattern, read its normalized `structure`, then open only relevant occurrences. Apply every viewport or component-variant exception; never turn an observed structure into an inferred semantic rule.\n4. Follow only links whose status is `resolved`. `unresolved-in-package` names a destination that is not available as package evidence.\n5. Use `tokens.css` for values and component HTML for canonical markup; references provide composition evidence only.\n6. Check `cssMode`: Shared references depend on `../tokens.css`; Standalone references inline the token values they need.\n\n' : '';
+  const verification = '## Verification\n\n1. Before delivery, run the package verifier when the environment provides it: `node scripts/verify.mjs package <package-dir>`. Fix errors; warnings must be disclosed, never converted to pass.\n2. For generated UI, run the separate UI mode: `node scripts/verify.mjs ui <ui-dir> --package <package-dir>`. It checks forbidden literals, undefined tokens, invalid variants, unsupported modes, missing local assets and malformed CSS.\n3. Treat static checks as rule evidence only. They do not prove visual similarity, usability or UX quality; a human or explicitly labeled review is still required when those claims matter.\n\n';
   return '---\nname: ' + slug(M.fileName || 'design-system') + '-design-system\ndescription: Design system exported from the Figma file "' + (M.fileName || '') + '". Use when building UI that must follow these tokens, components and rules.\n---\n' +
     '# ' + (M.fileName || 'Design System') + ' — agent entrypoint\n\n' +
     'This package is the source of truth. Do not restyle it from screenshots; read the files.\n\n' +
@@ -519,6 +543,7 @@ function skillMd(M, X) {
     '- Keep component structure and class names from `components/*.html` unless the user asks for a variant.\n' +
     '- Do not edit `tokens.css`, `components.css` or `manifest.json` by hand.\n' +
     '- Read `ai-control.md` before creative work: its `adherence_level` controls how far you may deviate.\n\n' +
+    verification +
     '## Inventory\n\n' + tbl(['Item', 'Count'], [['Tokens', (M.tokens || []).length], ['Components', comps.length], ['Component HTML', html.length], ['Icons', X && X.icons ? X.icons.total : 0], ['Reference pages', refs.length], ['Observed patterns', X && X.patterns ? X.patterns.stats.patterns : 0], ['Text styles', M.styles.text.length]]) +
     (comps.length ? '\n## Components\n\n' + comps.slice(0, 40).map(c => '- ' + c.name + ' (' + c.kind + ', ' + c.variants + ' variant(s))').join('\n') + '\n' : '') +
     (refs.length ? '\n## References\n\n' + refFileNames(M).slice(0, 40).map(r => '- ' + r.name + ' → `reference/' + r.file + '`').join('\n') + '\n' : '');
@@ -607,7 +632,7 @@ function enrichModel(M) {
     c.css = { lines, texts };
   });
   const patterns = patternData(M);
-  M.enriched = { derived, colorGaps: Object.keys(gaps).map(k => gaps[k]).sort((a, b) => b.uses - a.uses), coverage: cov, icons: iconSummary(M), screens: groupScreens(M), patterns, references: referenceIndexData(M, patterns) };
+  M.enriched = { derived, colorGaps: Object.keys(gaps).map(k => gaps[k]).sort((a, b) => b.uses - a.uses), coverage: cov, icons: iconSummary(M), screens: groupScreens(M), patterns, references: referenceIndexData(M, patterns, referenceCssMode(M, M.tokens)) };
   return M.enriched;
 }
 
@@ -792,7 +817,8 @@ function packageLintFindings(files, M) {
   });
   const schema = (path, predicate, message) => { if (Object.prototype.hasOwnProperty.call(parsed, path) && !predicate(parsed[path])) add('JSON_SCHEMA_INVALID', 'error', path, 'root', message, 'Regenerate the file with the required schema.'); };
   schema('manifest.json', x => x && !Array.isArray(x) && x.entities && !Array.isArray(x.entities), 'manifest.json requires an entities object.');
-  schema('components/index.json', x => x && typeof x.schemaVersion === 'string' && Array.isArray(x.components) && Array.isArray(x.failed) && (!Object.prototype.hasOwnProperty.call(x, 'patterns') || x.patterns && Array.isArray(x.patterns.patterns) && x.patterns.stats) && (!Object.prototype.hasOwnProperty.call(x, 'references') || x.references && Array.isArray(x.references.entries) && x.references.stats), 'Component index requires schemaVersion, components and failed; patterns and references, when present, require stats and rows.');
+  schema('components/index.json', x => x && typeof x.schemaVersion === 'string' && Array.isArray(x.components) && Array.isArray(x.failed) && (!Object.prototype.hasOwnProperty.call(x, 'patterns') || x.patterns && Array.isArray(x.patterns.patterns) && x.patterns.stats) && (!Object.prototype.hasOwnProperty.call(x, 'references') || x.references && (x.references.index === null || x.references.index === 'reference/index.json') && x.references.stats), 'Component index requires schemaVersion, components and failed; patterns and a valid Reference Index pointer, when present, require stats.');
+  schema('reference/index.json', x => x && x.schemaVersion === '1.0.0' && x.status === 'Observed' && x.role === 'source-evidence-index' && x.cssMode && Array.isArray(x.entries) && x.stats && x.classification && Array.isArray(x.classification.sourceEvidence), 'Reference Index requires schemaVersion, status, role, cssMode, classification, stats and entries.');
   schema('validation-report.json', x => x && Array.isArray(x.issues) && Array.isArray(x.dims), 'Validation report requires issues and dims arrays.');
   schema('metadata.json', x => x && typeof x.schemaVersion === 'string' && typeof x.generatedAt === 'string', 'metadata.json requires schemaVersion and generatedAt.');
   schema('metadata/token-map.json', x => x && Array.isArray(x.tokens) && Array.isArray(x.collections) && x.stats && x.stats.modeValues, 'token-map.json requires stats, collections and tokens.');
@@ -812,6 +838,8 @@ function packageLintFindings(files, M) {
       if (out.mdPath) checkRef('manifest.json', out.mdPath, 0, true);
       if (out.html) checkRef('manifest.json', out.html, 0, true);
     });
+    const inv = man.inventory;
+    if (inv && (inv.tokens !== M.tokens.length || inv.components !== M.components.length || inv.references !== (M.refs || []).length)) add('MANIFEST_INVENTORY_MISMATCH', 'error', 'manifest.json', 'inventory', 'Manifest inventory counts do not match the shared model.', 'Generate inventory counts from the extracted model.');
   }
   const tokenMap = parsed['metadata/token-map.json'];
   if (tokenMap && Array.isArray(tokenMap.tokens)) {
@@ -822,6 +850,7 @@ function packageLintFindings(files, M) {
   const index = parsed['components/index.json'];
   if (index && Array.isArray(index.components)) {
     index.components.forEach(c => { if (c.file) checkRef('', c.file, 0, true); (c.usedIn || []).forEach(u => checkRef('', 'reference/' + u, 0, true)); });
+    if (index.references && index.references.index) checkRef('', index.references.index, 0, true);
     if (index.coverage && (index.coverage.exportedVariants !== index.components.length || index.coverage.failedVariants !== index.failed.length)) add('COMPONENT_COVERAGE_MISMATCH', 'error', 'components/index.json', 'coverage', 'Component coverage counts do not match the exported and failed rows.', 'Calculate coverage from the shared extraction results.');
     const graph = index.graph;
     if (graph && Array.isArray(graph.families)) {
@@ -844,21 +873,24 @@ function packageLintFindings(files, M) {
         if (o.file) checkRef('', o.file, 0, true);
       }));
       if (man && man.stats && man.stats.patterns && JSON.stringify(man.stats.patterns) !== JSON.stringify(observed.stats)) add('PATTERN_STATS_MISMATCH', 'error', 'manifest.json', 'stats.patterns', 'Manifest pattern statistics differ from the observed pattern index.', 'Generate both statistics objects from the grouped reference data.');
-      const refIndex = index.references;
-      if (refIndex && Array.isArray(refIndex.entries)) {
-        const expectedRefs = referenceIndexData(M, expected), patternIds = new Set(observed.patterns.map(p => p.id));
-        if (JSON.stringify(refIndex.stats) !== JSON.stringify(expectedRefs.stats)) add('REFERENCE_INDEX_STATS_MISMATCH', 'error', 'components/index.json', 'references.stats', 'Reference index statistics differ from the source references and links.', 'Calculate reference counts after building the exact entries.');
-        if (JSON.stringify(refIndex.entries) !== JSON.stringify(expectedRefs.entries)) add('REFERENCE_INDEX_ENTRY_INVALID', 'error', 'components/index.json', 'references.entries', 'Reference index entries differ from the shared reference and pattern data.', 'Regenerate contextual fields from the shared model.');
-        refIndex.entries.forEach(e => {
-          const source = (M.refs || []).find(r => r.id === e.id);
-          if (!source || e.file !== 'reference/' + source.file) add('REFERENCE_INDEX_ENTRY_INVALID', 'error', 'components/index.json', 'references.entries.' + e.id, 'Reference entry does not match its source frame and HTML file.', 'Link the entry to the exact exported reference.');
-          if (e.file) checkRef('', e.file, 0, true);
-          (e.patterns || []).forEach(p => { if (!patternIds.has(p.id)) add('REFERENCE_INDEX_PATTERN_INVALID', 'error', 'components/index.json', 'references.entries.' + e.id + '.patterns', 'Reference entry points to missing pattern ' + p.id + '.', 'Use pattern IDs from the observed pattern index.'); });
-          (e.links || []).forEach(l => { if (l.status === 'resolved' && l.file) checkRef('', l.file, 0, true); if (l.status === 'resolved' && !l.file || l.status !== 'resolved' && l.file) add('REFERENCE_INDEX_LINK_INVALID', 'error', 'components/index.json', 'references.entries.' + e.id + '.links', 'Link status and target file disagree.', 'Resolved links require an existing file; unresolved links must not claim one.'); });
-        });
-        if (man && man.stats && man.stats.references && JSON.stringify(man.stats.references) !== JSON.stringify(refIndex.stats)) add('REFERENCE_INDEX_STATS_MISMATCH', 'error', 'manifest.json', 'stats.references', 'Manifest reference statistics differ from the reference index.', 'Generate both statistics objects from the same reference entries.');
-      }
+      const pointer = index.references, expectedRefs = referenceIndexData(M, expected, referenceCssMode(M, M.tokens));
+      if (pointer && JSON.stringify(pointer.stats) !== JSON.stringify(expectedRefs.stats)) add('REFERENCE_INDEX_STATS_MISMATCH', 'error', 'components/index.json', 'references.stats', 'Reference index statistics differ from the source references and links.', 'Calculate reference counts after building the exact entries.');
+      if ((M.refs || []).length && (!pointer || pointer.index !== 'reference/index.json')) add('REFERENCE_INDEX_MISSING', 'error', 'components/index.json', 'references.index', 'References exist but the canonical reference/index.json pointer is missing.', 'Generate reference/index.json and point to it.');
     }
+  }
+  const refIndex = parsed['reference/index.json'];
+  if ((M.refs || []).length && !refIndex) add('REFERENCE_INDEX_MISSING', 'error', 'reference/index.json', 'root', 'Canonical Reference Index is missing.', 'Write the source-evidence index for every exported reference.');
+  if (refIndex && Array.isArray(refIndex.entries)) {
+    const expectedRefs = referenceIndexData(M, patternData(M), referenceCssMode(M, M.tokens)), patternIds = new Set((parsed['components/index.json'] && parsed['components/index.json'].patterns && parsed['components/index.json'].patterns.patterns || []).map(p => p.id));
+    if (JSON.stringify(refIndex) !== JSON.stringify(expectedRefs)) add('REFERENCE_INDEX_ENTRY_INVALID', 'error', 'reference/index.json', 'root', 'Reference Index differs from the shared reference, pattern and CSS-mode data.', 'Regenerate the canonical index from the shared model.');
+    refIndex.entries.forEach(e => {
+      const source = (M.refs || []).find(r => r.id === e.id);
+      if (!source || e.file !== 'reference/' + source.file) add('REFERENCE_INDEX_ENTRY_INVALID', 'error', 'reference/index.json', 'entries.' + e.id, 'Reference entry does not match its source frame and HTML file.', 'Link the entry to the exact exported reference.');
+      if (e.file) checkRef('', e.file, 0, true);
+      (e.patterns || []).forEach(p => { if (!patternIds.has(p.id)) add('REFERENCE_INDEX_PATTERN_INVALID', 'error', 'reference/index.json', 'entries.' + e.id + '.patterns', 'Reference entry points to missing pattern ' + p.id + '.', 'Use pattern IDs from the observed pattern index.'); });
+      (e.links || []).forEach(l => { if (l.status === 'resolved' && l.file) checkRef('', l.file, 0, true); if (l.status === 'resolved' && !l.file || l.status !== 'resolved' && l.file) add('REFERENCE_INDEX_LINK_INVALID', 'error', 'reference/index.json', 'entries.' + e.id + '.links', 'Link status and target file disagree.', 'Resolved links require an existing file; unresolved links must not claim one.'); });
+    });
+    if (man && man.stats && man.stats.references && JSON.stringify(man.stats.references) !== JSON.stringify(refIndex.stats)) add('REFERENCE_INDEX_STATS_MISMATCH', 'error', 'manifest.json', 'stats.references', 'Manifest reference statistics differ from the reference index.', 'Generate both statistics objects from the same reference entries.');
   }
   const names = {}; (M.collections || []).forEach(c => { names[c.name] = (names[c.name] || 0) + 1; });
   Object.keys(names).filter(n => names[n] > 1).forEach(n => add('COLLECTION_DUPLICATE_NAME', 'warning', 'tokens.css', 'collection ' + n, 'Collection name "' + n + '" is ambiguous.', 'Rename duplicate collections in Figma.'));
@@ -932,13 +964,18 @@ function gen(M, mode, rejected, rejInf) {
   // ---- tokens.css, reference, component HTML, ai-control
   if (toks.length || nStyles || X.derived.length) files.push({ path: 'tokens.css', content: TC.content, tier: 0 });
   files.push({ path: 'SKILL.md', content: skillMd(M, X), tier: 0 });
-  referenceFiles(M, toks).forEach(f => files.push(f));
+  const referenceCss = referenceCssMode(M, toks);
+  X.references.cssMode = referenceCss;
+  referenceFiles(M, toks, referenceCss).forEach(f => files.push(f));
+  if ((M.refs || []).length) files.push({ path: 'reference/index.json', content: JSON.stringify(X.references, null, 2), tier: 1 });
+  const referencePointer = { schemaVersion: X.references.schemaVersion, status: X.references.status, index: (M.refs || []).length ? 'reference/index.json' : null, stats: X.references.stats };
   const CH = M.componentHtml || { ok: [], failed: [] }, compFiles = {};
   const compUsed = {};
   refFileNames(M).forEach(r => (r.components || []).forEach(u => {
     const page = r.file || r.name + '.html';
     [u.id, u.familyId].forEach(k => { if (k) ((compUsed[k] = compUsed[k] || new Set()).add(page)); });
   }));
+  let componentGraph = null;
   if (!minimal && (CH.ok.length || CH.failed.length || (M.refs || []).length)) {
     const used = {}, rows = [];
     let ccss = '/* Component HTML rendered by ' + (CH.engine || 'the HTML engine') + '. Values come from tokens.css. */\n';
@@ -950,9 +987,9 @@ function gen(M, mode, rejected, rejInf) {
       files.push({ path: file, content: doc, tier: 1 });
       rows.push({ id: c.id, name: c.name, figmaId: c.figmaId, nodeId: c.nodeId || c.figmaId, familyId: c.meta && c.meta.familyId || c.variantOf || c.figmaId, variantOf: c.variantOf || null, isDefault: c.isDefault !== false, className: c.className, file, width: c.w, height: c.h, nodes: c.nodes, vars: c.vars, metadata: c.meta || null, usedIn: Array.from(compUsed[c.figmaId] || (c.meta && compUsed[c.meta.familyId]) || []).sort() });
     });
-    const graph = componentGraphData(M, rows, CH.failed);
+    const graph = componentGraphData(M, rows, CH.failed); componentGraph = graph;
     if (CH.ok.length) files.push({ path: 'components.css', content: ccss, tier: 0 });
-    files.push({ path: 'components/index.json', content: JSON.stringify({ schemaVersion: '1.0.0', engine: CH.engine || null, coverage: CH.coverage || { sourceFamilies: M.components.length, sourceVariants: M.components.reduce((n, c) => n + (c.variants || 1), 0), exportedFamilies: graph.families.filter(f => f.extraction.exportedVariants > 0).length, exportedVariants: rows.length, failedVariants: CH.failed.length }, components: rows, failed: CH.failed, graph, patterns: X.patterns, references: X.references }, null, 2), tier: 1 });
+    files.push({ path: 'components/index.json', content: JSON.stringify({ schemaVersion: '1.1.0', engine: CH.engine || null, coverage: CH.coverage || { sourceFamilies: M.components.length, sourceVariants: M.components.reduce((n, c) => n + (c.variants || 1), 0), exportedFamilies: graph.families.filter(f => f.extraction.exportedVariants > 0).length, exportedVariants: rows.length, failedVariants: CH.failed.length }, components: rows, failed: CH.failed, graph, patterns: X.patterns, references: referencePointer }, null, 2), tier: 1 });
   }
   if (toks.length || nStyles) files.push({ path: 'ai-control.md', content: aiControlMd(M.adherence === undefined ? 3 : M.adherence), tier: 0 });
   // ---- validation.md (self-check added after lint)
@@ -967,7 +1004,7 @@ function gen(M, mode, rejected, rejInf) {
   const present = n => files.some(f => f.path === n) || n === 'design.md' || n === 'validation.md';
   const hasRefs = M.refs && M.refs.length, fileOf = n => files.find(f => f.path === n);
   const readOrder = [['SKILL.md', 'Agent entrypoint: read order, authority, inventory', sizeOf(fileOf('SKILL.md'))], ['design.md', 'Rules, typography, overview', 'this file'], ['tokens.css', 'ALL values: variables, text classes, shadows (single source of truth)', sizeOf(fileOf('tokens.css'))], ['ai-control.md', 'Creative freedom level (read before every task)', sizeOf(fileOf('ai-control.md'))],
-    ['components.md', 'Component list, sizes and Spec CSS; open only the component you need', sizeOf(fileOf('components.md'))], ['components/index.json', 'Component graph, observed patterns and contextual reference index', sizeOf(fileOf('components/index.json'))], ['tokens.md', 'Explains tokens: names, usage, gaps', sizeOf(fileOf('tokens.md'))], ['content.md', 'Product, users, screens (context only)', sizeOf(fileOf('content.md'))],
+    ['components.md', 'Component list, sizes and Spec CSS; open only the component you need', sizeOf(fileOf('components.md'))], ['components/index.json', 'Component graph, observed patterns and a pointer to the reference index', sizeOf(fileOf('components/index.json'))], ['reference/index.json', 'Canonical reference source-evidence index and CSS mode', sizeOf(fileOf('reference/index.json'))], ['tokens.md', 'Explains tokens: names, usage, gaps', sizeOf(fileOf('tokens.md'))], ['content.md', 'Product, users, screens (context only)', sizeOf(fileOf('content.md'))],
     ['validation.md', 'Design-system health and what to fix', '≈ ' + estTokens(validationBase) + ' tokens']].filter(r => present(r[0]));
   const pkgLine = pkgNames.filter(present).join(', ') + (hasRefs ? ', reference/ (one HTML per frame)' : '') + (M.componentHtml && M.componentHtml.ok.length ? ', components/ (HTML)' : '');
   let d = '# Design System\n\n## Overview\n\n- Source: Figma file "' + M.fileName + '"\n- Scope: ' + (M.pages.join(', ') || 'none') + '\n- Entities: ' + toks.length + ' tokens' + (X.derived.length ? ' (+' + X.derived.length + ' derived)' : '') + ', ' + M.components.length + ' components, ' + (X.icons ? X.icons.total + ' icons (' + (X.icons.pack || 'pack not provided') + '), ' : '') + nStyles + ' styles\n' +
@@ -987,22 +1024,73 @@ function gen(M, mode, rejected, rejInf) {
   d += '\n' + out.join('\n') + (absent.length ? '\n## Other sections\n\n' + absent.join(', ') + ': not available from the selected sources.\n' : '') + (on('validation') ? '\n' + sec.validation : '');
   const designFile = { path: 'design.md', content: d, tier: 0 };
   files.push({ path: 'metadata/token-map.json', content: JSON.stringify(TM, null, 2), tier: 2 });
-  const man = { entities: {}, stats: { tokens: TS, patterns: X.patterns.stats, references: X.references.stats } };
+  const fileKey = figmaFileKey(), external = [], extKey = new Set();
+  const addExternal = (kind, name, source) => { name = String(name || '').trim(); if (!name) return; const key = kind + '\u0000' + name; if (extKey.has(key)) return; extKey.add(key); external.push({ kind, name, source, status: 'not-bundled' }); };
+  (M.styles.text || []).forEach(s => addExternal(isGoogleFont(s.family) ? 'google-font' : 'custom-font', s.family, 'text-style'));
+  (M.refs || []).forEach(r => Object.keys(r.fonts || {}).forEach(name => addExternal(isGoogleFont(name) ? 'google-font' : 'custom-font', name, 'reference')));
+  if (componentGraph) componentGraph.families.forEach(f => (f.dependencies || []).filter(d => d.status === 'external').forEach(d => addExternal('external-component', d.name, 'component-graph')));
+  const bundledAssets = [];
+  (M.refs || []).filter(r => !M.refEmbed).forEach(r => (r.files || []).forEach(f => bundledAssets.push({ path: 'reference/' + f.path, kind: 'figma-image', sourceReference: r.name })));
+  const unresolvedModes = TS.modeValues.unresolved + TS.modeValues.circular + TS.modeValues.invalid;
+  const failedVariants = CH.failed.length, exportedVariants = CH.ok.length, sourceVariants = CH.coverage ? CH.coverage.sourceVariants : M.components.reduce((n, c) => n + (c.variants || 1), 0);
+  const fallbackRefs = (M.refs || []).filter(r => /builtin/.test(String(r.engine || '')));
+  const componentStatus = !M.components.length ? 'empty' : failedVariants ? (exportedVariants ? 'partial' : 'failed') : exportedVariants ? 'supported' : 'unavailable';
+  const referenceStatus = !(M.refs || []).length ? 'empty' : fallbackRefs.length ? 'partial' : 'supported';
+  const sourceScope = M.scope || {};
+  const limitations = [];
+  if (!fileKey) limitations.push('Stable Figma file ID is unavailable in this plugin context; source.fileKey is null rather than inferred.');
+  if (failedVariants) limitations.push(failedVariants + ' source component variant(s) could not be exported as HTML.');
+  if (componentGraph && componentGraph.stats.missingDependencies) limitations.push(componentGraph.stats.missingDependencies + ' nested component dependency/dependencies are missing.');
+  if (componentGraph && componentGraph.stats.externalDependencies) limitations.push(componentGraph.stats.externalDependencies + ' nested component dependency/dependencies are external.');
+  if (fallbackRefs.length) limitations.push(fallbackRefs.length + ' reference frame(s) used the built-in fallback renderer instead of fig-engine.');
+  if (external.length) limitations.push(external.length + ' external font/component dependency/dependencies are declared but not bundled.');
+  limitations.push('Font files and asset licenses are not packaged by this build; the canonical asset/license contract remains undecided.');
+  limitations.push('Binary output fingerprints are computed over the encoded payload; offline Verify checks their presence but not byte equality.');
+  limitations.push('Static package verification cannot prove visual similarity or UX quality.');
+  const man = {
+    formatVersion: '3.0.0', packageType: 'global-design-system', generatorVersion: GENERATOR_VERSION,
+    source: { type: 'figma', name: M.fileName, fileKey, fileKeyStatus: fileKey ? 'available' : 'unavailable' },
+    scope: { pages: M.pages.slice(), pageIds: sourceScope.pageIds || null, collections: (M.collections || []).map(c => ({ id: c.id || null, name: c.name, modes: c.modes.slice() })), collectionIds: sourceScope.collectionIds || null, categories: sourceScope.categories || null, styles: sourceScope.styles !== false, icons: sourceScope.icons !== false, referenceFrames: (M.refs || []).length },
+    capabilities: {
+      tokens: { status: !toks.length ? 'empty' : unresolvedModes ? 'partial' : 'supported', coverage: TS },
+      components: { status: componentStatus, coverage: { families: M.components.length, sourceVariants, exportedVariants, failedVariants } },
+      references: { status: referenceStatus, coverage: X.references.stats },
+      patterns: { status: X.patterns.stats.patterns ? 'supported' : 'empty', coverage: X.patterns.stats },
+      validation: { status: 'supported', reportPath: 'validation-report.json' }
+    },
+    inventory: { tokens: toks.length, components: M.components.length, componentVariants: CH.ok.length, references: (M.refs || []).length, patterns: X.patterns.stats.patterns },
+    dependencies: { external, bundledAssets, bundledFonts: [] },
+    limitations,
+    entities: {}, stats: { tokens: TS, patterns: X.patterns.stats, references: X.references.stats },
+    validation: { status: V.errors ? 'error' : V.warnings ? 'warning' : 'pass', errorCount: V.errors, warningCount: V.warnings, reportPath: 'validation-report.json' }
+  };
   toks.forEach(t => man.entities[t.id] = { source: { type: 'figma_variable', id: t.figmaId }, output: { mdPath: 'tokens.md#' + slug(t.category), cssVar: tmById[t.id].cssEmitted ? TCN.byFigma[t.figmaId] : null, status: tmById[t.id].status } });
   M.components.forEach(c => man.entities[c.id] = { source: { type: 'figma_' + c.kind.replace('-', '_'), id: c.figmaId }, output: { mdPath: 'components.md#' + anchorOf(c.name), html: compFiles[c.figmaId] || null } });
   const manifestFile = { path: 'manifest.json', content: JSON.stringify(man, null, 2), tier: 2 };
   // ---- lint -> validation.md
   const prelim = [designFile].concat(files, [{ path: 'validation.md', content: validationBase, tier: 1 }, manifestFile]);
   const lint = lintPackage(prelim, M); M.lint = lint;
+  const packageErrors = lint.findings.filter(i => i.severity === 'error').length, packageWarnings = lint.findings.filter(i => i.severity === 'warning').length;
+  man.validation = { status: V.errors + packageErrors ? 'error' : V.warnings + packageWarnings ? 'warning' : 'pass', errorCount: V.errors + packageErrors, warningCount: V.warnings + packageWarnings, reportPath: 'validation-report.json' };
+  manifestFile.content = JSON.stringify(man, null, 2);
   const packageFindings = lint.findings.length ? '\n## Package findings\n\n' + tbl(['Severity', 'Code', 'File', 'Location', 'Finding'], lint.findings.map(i => [i.severity, i.code, i.file, i.location, i.message])) : '';
   const validation = validationBase + packageFindings + '\n## Package self-check: ' + lint.score + ' / 100\n\n' + tbl(['Check', 'Result', 'Detail'], lint.checks.map(c => [c.label, c.pass ? 'pass' : 'FAIL', c.detail]));
   if (on('validation')) files.push({ path: 'validation.md', content: validation, tier: 1 });
   files.unshift(designFile);
-  files.push({ path: 'metadata.json', content: JSON.stringify({ schemaVersion: '1.0.0', generatorVersion: '0.10.0', generatedAt: new Date().toISOString(), source: 'figma', sourceFileName: M.fileName, scopePages: M.pages, mode, packageQuality: lint.score }, null, 2), tier: 2 });
-  files.push(manifestFile, { path: 'validation-report.json', content: JSON.stringify(Object.assign({}, V, { packageQuality: lint.score, packageFindings: lint.findings }), null, 2), tier: 2 });
+  files.push({ path: 'metadata.json', content: JSON.stringify({ schemaVersion: '1.0.0', generatorVersion: GENERATOR_VERSION, generatedAt: new Date().toISOString(), source: 'figma', sourceFileName: M.fileName, scopePages: M.pages, mode, packageQuality: lint.score }, null, 2), tier: 2 });
+  files.push(manifestFile, { path: 'validation-report.json', content: JSON.stringify(Object.assign({}, V, { packageQuality: lint.score, packageFindings: lint.findings, packageErrorCount: packageErrors, packageWarningCount: packageWarnings }), null, 2), tier: 2 });
   if ((M.icons || []).length) files.push({ path: 'icons.json', content: JSON.stringify((M.icons || []).map(i => ({ name: i.name, named: i.named, kind: i.kind, size: i.w + 'x' + i.h, confidence: i.confidence, usedIn: i.usedIn, figmaId: i.figmaId })), null, 2), tier: 2 });
   files.push({ path: 'rules/validation-rules.json', content: JSON.stringify([...new Set(V.issues.map(i => i.code))].sort().map(c => ({ ruleId: c, source: 'derived', deterministic: true })), null, 2), tier: 3 });
-  return files.filter(f => f.tier <= { minimal: 0, standard: 1, full: 2, agent: 3 }[mode]);
+  const output = files.filter(f => f.tier <= { minimal: 0, standard: 1, full: 2, agent: 3 }[mode]), manifestOutput = output.find(f => f.path === 'manifest.json');
+  if (manifestOutput) {
+    man.outputs = {
+      algorithm: 'fnv1a32-dual+length',
+      excluded: [{ path: 'manifest.json', reason: 'self-reference' }, { path: 'metadata.json', reason: 'contains generatedAt' }],
+      files: output.filter(f => f.path !== 'manifest.json' && f.path !== 'metadata.json').map(f => ({ path: f.path, binary: !!f.binary, length: String(f.content || '').length, fingerprint: contentFingerprint(f.content) })).sort((a, b) => a.path.localeCompare(b.path))
+    };
+    manifestOutput.content = JSON.stringify(man, null, 2);
+  }
+  return output;
 }
 const RULES_PLACEHOLDER = '\n@@RULES@@\n';
 
@@ -1452,21 +1540,27 @@ async function componentSpec(root) {
   }
   return sp.filter(x => x.raw || x.bound || x.textStyle);
 }
+/** A broken Component Set throws from this getter; null means Figma could not provide definitions. */
+function componentPropertyDefinitions(n) {
+  try { return n && n.componentPropertyDefinitions || {}; } catch (e) { return null; }
+}
 function defaultComponentVariant(n) {
   if (!n || n.type !== 'COMPONENT_SET') return n;
-  const variants = n.children.filter(x => x.type === 'COMPONENT'), defs = n.componentPropertyDefinitions || {}, axes = Object.keys(defs).filter(k => defs[k].type === 'VARIANT');
+  const variants = n.children.filter(x => x.type === 'COMPONENT'), defs = componentPropertyDefinitions(n) || {}, axes = Object.keys(defs).filter(k => defs[k].type === 'VARIANT');
   return variants.find(x => axes.length && axes.every(k => String((x.variantProperties || {})[k]) === String(defs[k].defaultValue))) || variants[0] || n;
 }
 async function extractComponent(n, pageName) {
   const isSet = n.type === 'COMPONENT_SET', issues = [];
   let properties;
   try {
-    properties = Object.entries(n.componentPropertyDefinitions || {}).map(([k, d]) => ({ name: k.replace(/#\d+:\d+$/, ''), type: d.type, default: String(d.defaultValue), options: d.variantOptions || null }));
+    const defs = componentPropertyDefinitions(n);
+    if (defs === null) throw new Error('Figma reports existing errors on this component set');
+    properties = Object.entries(defs).map(([k, d]) => ({ name: k.replace(/#\d+:\d+$/, ''), type: d.type, default: String(d.defaultValue), options: d.variantOptions || null }));
   } catch (e) {
     const map = {};
     (isSet ? n.children : []).forEach(ch => ch.name.split(',').forEach(part => { const kv = part.split('='); if (kv.length !== 2) return; const k = kv[0].trim(), v = kv[1].trim(); (map[k] = map[k] || []); if (!map[k].includes(v)) map[k].push(v); }));
     properties = Object.keys(map).map(k => ({ name: k, type: 'VARIANT', default: map[k][0], options: map[k] }));
-    issues.push({ code: 'COMPONENT_SET_HAS_ERRORS', severity: 'warning', entityId: 'component.' + slug(n.name), message: 'Figma reports errors in component set "' + n.name + '"; properties were read from variant names.', recovery: 'Fix duplicate or invalid variants in Figma.' });
+    issues.push({ code: 'COMPONENT_SET_HAS_ERRORS', severity: 'warning', entityId: 'component.' + slug(n.name), message: 'Figma reports errors in component set "' + n.name + '"; definitions could not be read (' + String(e && e.message || e) + '). Properties were recovered from variant names.', recovery: 'Fix the Component Set errors in Figma, then regenerate. Until then the variant-name fallback is used and is visible in validation.' });
   }
   const states = []; properties.forEach(p => { if (p.type === 'VARIANT' && /state|status/i.test(p.name) && p.options) p.options.forEach(o => states.push(o)); });
   const root = defaultComponentVariant(n), ids = new Set(), styleIds = new Set(), nested = {}, roots = isSet ? n.children.filter(x => x.type === 'COMPONENT') : [root];
@@ -1615,8 +1709,9 @@ async function analyze(sel, ctxForm, dd) {
   const nSty = D.styles.text.length + D.styles.paint.length + D.styles.effect.length, autoDesc = 'Design system file with ' + designComps.length + ' component(s), ' + tokens.length + ' token(s) and ' + nSty + ' style(s) across ' + D.pagesOut.length + ' page(s).';
   D.cols.filter(c => sel.collectionIds.includes(c.id)).forEach(c => facts.push('Variable collection "' + c.name + '" has ' + c.modes.length + ' mode(s): ' + c.modes.map(m => m.name).join(', ')));
   if (designComps.length) facts.push('The file contains ' + designComps.length + ' component(s) or component set(s) across all pages.');
-  MODEL = { icons, iconPack: sel.iconPack || '', adherence: sel.adherence === undefined || sel.adherence === null ? 3 : clampLevel(sel.adherence), refs, refEmbed: sel.refEmbedImages === true, rootVars: rootVars(tokens), fileName: figma.root.name, pages: D.pagesOut, tokens, styles: D.styles, components: designComps, screens: D.screens, collections: D.cols.filter(c => sel.collectionIds.includes(c.id)).map(c => ({ id: c.id, name: c.name, defaultMode: (c.modes.find(m => m.modeId === c.defaultModeId) || c.modes[0]).name, modes: c.modes.map(m => m.name), modeMap: Object.fromEntries(c.modes.map(m => [m.name, m.modeId])) })),
+  MODEL = { icons, iconPack: sel.iconPack || '', adherence: sel.adherence === undefined || sel.adherence === null ? 3 : clampLevel(sel.adherence), refs, refEmbed: sel.refEmbedImages === true, refCss: sel.refCss === 'shared' ? 'shared' : 'standalone', rootVars: rootVars(tokens), fileName: figma.root.name, pages: D.pagesOut, tokens, styles: D.styles, components: designComps, screens: D.screens, collections: D.cols.filter(c => sel.collectionIds.includes(c.id)).map(c => ({ id: c.id, name: c.name, defaultMode: (c.modes.find(m => m.modeId === c.defaultModeId) || c.modes[0]).name, modes: c.modes.map(m => m.name), modeMap: Object.fromEntries(c.modes.map(m => [m.name, m.modeId])) })),
     componentHtml: compExport,
+    scope: { pageIds: (sel.pageIds || []).slice(), collectionIds: (sel.collectionIds || []).slice(), categories: sel.categories || null, styles: sel.styles !== false, icons: sel.icons !== false, referenceFrameIds: (sel.refFrameIds || []).slice() },
     sections: sel.sections || {}, context: cm === 'skip' ? buildContext({}, facts, []) : buildContext(ctxForm, facts, figInf, { name: figma.root.name, description: autoDesc }), contentPack: cm !== 'skip', ctxMode: cm, depPolicy: sel.depPolicy,
     depSummary: { tokens: tokens.filter(t => t.origin === 'dependency').length, components: components.filter(c => c.origin === 'dependency').length } };
   MODEL.validation = validate(MODEL, issues);
@@ -1658,19 +1753,19 @@ function domSep(tokens) {
   return Object.keys(c).sort((a, b) => c[b] - c[a])[0] || 'none';
 }
 
-// ---------- design.md -> Figma (colors only, create-only) ----------
+// ---------- Experimental color-only write-back; never a supported bidirectional compiler ----------
 async function build(items) {
-  if (!items.length) return post('built', { created: 0, skipped: 0 });
+  if (!items.length) return post('built', { created: 0, skipped: 0, status: 'experimental', direction: 'export-only', capability: 'colors-only' });
   const existing = new Set((await figma.variables.getLocalVariablesAsync()).map(v => v.name));
-  const col = figma.variables.createVariableCollection('design.md import');
+  const col = figma.variables.createVariableCollection('design.md experimental colors');
   let created = 0, skipped = 0;
   for (const it of items) {
     if (existing.has(it.name)) { skipped++; continue; }
     figma.variables.createVariable(it.name, col, 'COLOR').setValueForMode(col.defaultModeId, rgb(it.hex)); created++;
   }
   if (!created) col.remove();
-  figma.notify('Created ' + created + ' variable(s)');
-  post('built', { created, skipped });
+  figma.notify('Experimental color write-back: ' + created + ' variable(s)');
+  post('built', { created, skipped, status: 'experimental', direction: 'export-only', capability: 'colors-only' });
 }
 
 async function resizeUi(msg) {
@@ -1700,4 +1795,4 @@ if (typeof figma !== 'undefined') figma.ui.onmessage = async msg => {
     else if (msg.type === 'close') figma.closePlugin();
   } catch (e) { post('error', { message: String((e && e.message) || e) }); }
 };
-if (typeof module !== 'undefined') module.exports = { sendFiles, uiSize, levelPicker, extractDataImages, refDoc, refFileNames, refFileName, validate, enrichModel, patternData, referenceIndexData, lintPackage, aggregateIssues, uniquifyComponents, matchTextStyle, nearestColor, guessPack, engineInfo, refTokenMap, valueMatchIssues, aiControlMd, levelLine, referenceFiles, tokensCss, cssNameMap, cssValue, cssVar, iconScore, inferFromFrames, buildPrompt, promptData, referenceMd, iconsMd, parseContext, buildContext, ctxMd, contentMd, planDependencies, applyPolicy, resolve, gen };
+if (typeof module !== 'undefined') module.exports = { sendFiles, uiSize, levelPicker, extractDataImages, refDoc, refFileNames, refFileName, validate, enrichModel, patternData, referenceIndexData, referenceCssMode, lintPackage, aggregateIssues, uniquifyComponents, matchTextStyle, nearestColor, guessPack, engineInfo, refTokenMap, valueMatchIssues, aiControlMd, levelLine, referenceFiles, tokensCss, cssNameMap, cssValue, cssVar, iconScore, inferFromFrames, buildPrompt, promptData, referenceMd, iconsMd, parseContext, buildContext, ctxMd, contentMd, planDependencies, applyPolicy, resolve, gen };

@@ -1,0 +1,334 @@
+{
+  "schemaVersion": "1.1.0",
+  "engine": "fig-engine@1.0.0",
+  "coverage": {
+    "sourceFamilies": 1,
+    "sourceVariants": 1,
+    "exportedFamilies": 1,
+    "exportedVariants": 1,
+    "failedVariants": 0
+  },
+  "components": [
+    {
+      "id": "component.button",
+      "name": "Button",
+      "figmaId": "set:1",
+      "nodeId": "v:medium",
+      "familyId": "set:1",
+      "variantOf": null,
+      "isDefault": true,
+      "className": "button-golden",
+      "file": "components/button.html",
+      "width": 96,
+      "height": 40,
+      "nodes": 2,
+      "vars": [
+        "--size-medium",
+        "--color-primary",
+        "--spacing-16"
+      ],
+      "metadata": {
+        "id": "v:medium",
+        "name": "Size=Medium",
+        "familyId": "set:1",
+        "familyName": "Button",
+        "variantProperties": {
+          "Size": "Medium"
+        },
+        "propertyDefinitions": {
+          "Size": {
+            "type": "VARIANT",
+            "defaultValue": "Medium",
+            "variantOptions": [
+              "Medium"
+            ]
+          }
+        }
+      },
+      "usedIn": [
+        "Home.html",
+        "Settings.html"
+      ]
+    }
+  ],
+  "failed": [],
+  "graph": {
+    "families": [
+      {
+        "id": "set:1",
+        "entityId": "component.button",
+        "name": "Button",
+        "kind": "component-set",
+        "page": "Components",
+        "description": "Primary action.",
+        "properties": [
+          {
+            "name": "Size",
+            "type": "VARIANT",
+            "default": "Medium",
+            "options": [
+              "Medium"
+            ]
+          }
+        ],
+        "states": [],
+        "variants": [
+          {
+            "id": "v:medium",
+            "entityId": "component.button",
+            "familyId": "set:1",
+            "name": "Size=Medium",
+            "exportName": "Button",
+            "properties": {
+              "Size": "Medium"
+            },
+            "isDefault": true,
+            "status": "exported",
+            "file": "components/button.html",
+            "usedIn": [
+              "Home.html",
+              "Settings.html"
+            ]
+          }
+        ],
+        "tokens": [
+          {
+            "id": "token.color.primary",
+            "figmaId": "var:Color/Primary",
+            "name": "Color/Primary"
+          },
+          {
+            "id": "token.size.medium",
+            "figmaId": "var:Size/Medium",
+            "name": "Size/Medium"
+          },
+          {
+            "id": "token.spacing.16",
+            "figmaId": "var:Spacing/16",
+            "name": "Spacing/16"
+          }
+        ],
+        "dependencies": [],
+        "instances": [
+          {
+            "id": "i:1",
+            "name": "CTA",
+            "componentId": "v:medium",
+            "familyId": "set:1",
+            "variantProperties": {
+              "Size": "Medium"
+            },
+            "referenceId": "fr:1",
+            "reference": "Home",
+            "page": "Screens",
+            "file": "reference/Home.html",
+            "status": "observed",
+            "evidence": "figma-instance"
+          },
+          {
+            "id": "i:2",
+            "name": "CTA",
+            "componentId": "v:medium",
+            "familyId": "set:1",
+            "variantProperties": {
+              "Size": "Medium"
+            },
+            "referenceId": "fr:2",
+            "reference": "Settings",
+            "page": "Screens",
+            "file": "reference/Settings.html",
+            "status": "observed",
+            "evidence": "figma-instance"
+          }
+        ],
+        "usedIn": [
+          "Home.html",
+          "Settings.html"
+        ],
+        "extraction": {
+          "status": "extracted",
+          "sourceVariants": 1,
+          "exportedVariants": 1,
+          "failedVariants": 0,
+          "limitations": []
+        }
+      }
+    ],
+    "edges": [],
+    "stats": {
+      "families": 1,
+      "sourceVariants": 1,
+      "exportedVariants": 1,
+      "failedVariants": 0,
+      "instances": 2,
+      "dependencies": 0,
+      "missingDependencies": 0,
+      "externalDependencies": 0
+    }
+  },
+  "patterns": {
+    "schemaVersion": "1.0.0",
+    "status": "Observed",
+    "fingerprint": {
+      "algorithm": "dual-fnv1a32-length",
+      "normalization": "html-structure-v1",
+      "excludes": [
+        "text content",
+        "generated class names",
+        "inline styles",
+        "Figma node IDs",
+        "component variant values"
+      ]
+    },
+    "limitations": [
+      "Patterns describe observed HTML structure, not inferred semantic intent or visual similarity."
+    ],
+    "stats": {
+      "references": 2,
+      "patterns": 1,
+      "repeatedPatterns": 1,
+      "groupedReferences": 2,
+      "singletonPatterns": 0
+    },
+    "patterns": [
+      {
+        "id": "pattern.qp1xp1-1t7zo0f-3j",
+        "fingerprint": "structure-v1:qp1xp1-1t7zo0f-3j",
+        "status": "Observed",
+        "structure": [
+          {
+            "tag": "div",
+            "children": [
+              {
+                "tag": "button",
+                "component": "Button",
+                "control": "button",
+                "children": [
+                  {
+                    "tag": "span",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "occurrences": [
+          {
+            "referenceId": "fr:1",
+            "reference": "Home",
+            "page": "Screens",
+            "file": "reference/Home.html",
+            "width": 390,
+            "height": 844,
+            "evidenceLevel": "figma-ir",
+            "nodes": [
+              {
+                "id": "fr:1",
+                "path": "0",
+                "tag": "div"
+              },
+              {
+                "id": "i:1",
+                "path": "0.0",
+                "tag": "button",
+                "componentId": "v:medium",
+                "familyId": "set:1",
+                "name": "Size=Medium"
+              },
+              {
+                "id": "i:1:label",
+                "path": "0.0.0",
+                "tag": "span"
+              }
+            ],
+            "components": [
+              {
+                "componentId": "v:medium",
+                "familyId": "set:1",
+                "name": "Size=Medium",
+                "instanceId": "i:1",
+                "variantProperties": {
+                  "Size": "Medium"
+                }
+              }
+            ]
+          },
+          {
+            "referenceId": "fr:2",
+            "reference": "Settings",
+            "page": "Screens",
+            "file": "reference/Settings.html",
+            "width": 1440,
+            "height": 844,
+            "evidenceLevel": "figma-ir",
+            "nodes": [
+              {
+                "id": "fr:2",
+                "path": "0",
+                "tag": "div"
+              },
+              {
+                "id": "i:2",
+                "path": "0.0",
+                "tag": "button",
+                "componentId": "v:medium",
+                "familyId": "set:1",
+                "name": "Size=Medium"
+              },
+              {
+                "id": "i:2:label",
+                "path": "0.0.0",
+                "tag": "span"
+              }
+            ],
+            "components": [
+              {
+                "componentId": "v:medium",
+                "familyId": "set:1",
+                "name": "Size=Medium",
+                "instanceId": "i:2",
+                "variantProperties": {
+                  "Size": "Medium"
+                }
+              }
+            ]
+          }
+        ],
+        "exceptions": [
+          {
+            "type": "viewport-size",
+            "observations": [
+              {
+                "referenceId": "fr:1",
+                "file": "reference/Home.html",
+                "width": 390,
+                "height": 844
+              },
+              {
+                "referenceId": "fr:2",
+                "file": "reference/Settings.html",
+                "width": 1440,
+                "height": 844
+              }
+            ]
+          }
+        ],
+        "limitations": []
+      }
+    ]
+  },
+  "references": {
+    "schemaVersion": "1.0.0",
+    "status": "Observed",
+    "index": "reference/index.json",
+    "stats": {
+      "references": 2,
+      "pages": 1,
+      "withComponents": 2,
+      "withLinks": 1,
+      "resolvedLinks": 1,
+      "unresolvedLinks": 0
+    }
+  }
+}

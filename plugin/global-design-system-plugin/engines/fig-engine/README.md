@@ -34,6 +34,8 @@ await FigEngine.exportComponent(node, tokens, options, classNames?)
 - `tokens` is the core token map (`refTokenMap`), used for value matching and CSS variables.
 - `exportComponent` accepts an optional `Set` of class names so components in one build share a namespace and
   do not collide; `COMPONENT_SET` nodes render their first variant.
+- Shared Reference CSS is composed in `core.js`, not by a renderer option: the engine returns frame CSS, used
+  variables and token map; the core adds the deterministic `../tokens.css` link. No engine API emits stylesheet links.
 - `options.matchColorsByValue` maps raw colors to tokens by value; `options.embedImages` keeps assets inline.
 - Output is pure CSS (no Tailwind), px units, no reset; the adapter adds links/fonts/asset externalization.
 - `markers`: reference frames carry `data-component` / `data-component-id` on every node that came from a Figma
@@ -55,7 +57,7 @@ await FigEngine.exportComponent(node, tokens, options, classNames?)
 |---|---|
 | `componentDedup` | It shares one class per component and emits its rules once, across the whole export. Each reference frame here must stay standalone HTML, so a later frame would reference rules its own stylesheet does not contain. |
 | `responsive` / `intrinsicReflow` / `designWidth` | The reference HTML is visual evidence: it has to render at the size it was designed at, not reflow. |
-| `embedFontsBase64` / `customFonts` | The Figma Plugin API does not hand out font files; the package ships `fonts.css` plus instructions instead. |
+| `embedFontsBase64` / `customFonts` | The Figma Plugin API does not hand out font files. Instead, core writes the `@font-face` rules and a `fonts/` folder instruction inline into the reference HTML that needs them; no separate `fonts.css` file is shipped. |
 | `debugFigmaIds` | `data-figma-id` is for the pixel-diff harness; the package keeps the markup clean. |
 
 ## Updating the engine
@@ -67,8 +69,9 @@ node scripts/build.mjs       # bundle + assemble only
 node scripts/sync-fig-engine.mjs --dry   # report added/changed/removed vendored files, write nothing
 ```
 
-Paths default to `C:/Users/matin.ghanbari/Desktop/git hub/figma-ai/fig-engine` with `html-generator` as a
-sibling; override with `FIG_ENGINE_DIR` / `FIG_ENGINE_HTML_GENERATOR` or `--source` / `--html`.
+Paths default to a `fig-engine` checkout with `html-generator` as a sibling. Set `FIG_ENGINE_DIR` and
+`FIG_ENGINE_HTML_GENERATOR` (or pass `--source` / `--html`) to point at your own checkout; the script never assumes a
+personal absolute path.
 
 The sync script resolves the import closure from these entries, copies only runtime files, fails on new
 unexpected external imports, prunes removed files, and records hash + commit in `ENGINE.json`. After syncing,

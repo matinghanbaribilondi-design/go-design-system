@@ -18,7 +18,7 @@ main{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;scro
 .step-line{flex:1 1 8px;min-width:8px;height:1px;background:var(--line)}.step-line.done{background:#111}
 .panel{display:none;padding-bottom:12px}.panel.active{display:block}
 .panel-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:14px}.panel-head h2{font-size:16px;letter-spacing:-.025em;margin:0 0 4px;font-weight:600}.panel-head p{font-size:12px;color:var(--muted);margin:0}.count{font-size:11px;color:var(--muted);white-space:nowrap}
-.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}.search{width:100%;max-width:290px;border:1px solid var(--line);background:var(--surface);border-radius:7px;height:33px;padding:0 10px;color:var(--text)}.search::placeholder{color:var(--faint)}.text-btn{border:0;background:transparent;color:var(--muted);padding:5px 4px;font-size:12px}.text-btn:hover{color:var(--text)}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}.search{width:100%;max-width:290px;border:1px solid var(--line);background:var(--surface);border-radius:7px;height:33px;padding:0 10px;color:var(--text)}.search::placeholder{color:var(--faint)}.text-btn{border:0;background:transparent;color:var(--muted);padding:5px 4px;font-size:12px}.text-btn:hover{color:var(--text)}.ref-css{max-width:190px;padding:0 8px;font-size:12px}
 .list{border-top:1px solid var(--line)}.item{min-height:54px;display:flex;align-items:center;gap:11px;padding:10px 8px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none}.item:hover{background:var(--surface)}.check{width:16px;height:16px;border:1px solid #c9c9cf;border-radius:4px;display:grid;place-items:center;flex:none}.item.selected .check,.ref-card.selected .check{background:#111;border-color:#111}.item.selected .check:after,.ref-card.selected .check:after{content:"";width:7px;height:4px;border:solid #fff;border-width:0 0 1.5px 1.5px;transform:rotate(-45deg) translate(1px,-1px)}
 .item-main{flex:1;min-width:0}.item-title{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.item-meta{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tag{font-size:10px;color:var(--muted);border:1px solid var(--line);padding:3px 6px;border-radius:4px;white-space:nowrap;flex:none}.tag.rec{color:#1f5e3e;border-color:#cfe3d8;background:#f2f9f5}
 .mini-icon{width:28px;height:28px;display:grid;place-items:center;border:1px solid var(--line);border-radius:6px;color:#555;flex:none;font-size:12px}
@@ -106,7 +106,7 @@ main{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;scro
         <p>Choose the right balance between following design system rules and exploring creative ideas.</p>
         <div class="slider hide" id="adhSlider">
           <div class="sl-nums" id="adhNums"></div>
-          <div class="sl-track" id="adhTrack" role="slider" tabindex="0" aria-label="How creative should the AI be?" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0">
+          <div class="sl-track" id="adhTrack" role="slider" tabindex="0" aria-label="How creative should the AI be?" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0">
             <span class="sl-rail"></span><span class="sl-fill" id="adhFill"></span><span class="sl-marks" id="adhMarks"></span>
           </div>
           <div class="sl-labels" id="adhLabels"></div>
@@ -122,7 +122,7 @@ main{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;scro
 
     <section class="panel" id="panel1">
       <div class="panel-head"><div><h2>Choose reference pages</h2><p>Each selected frame ships as its own HTML file, named after the frame. Frames inside sections are listed.</p></div><div class="count" id="refCount">0 references selected</div></div>
-      <div class="toolbar"><input class="search" id="searchRefs" placeholder="Search reference frames…" aria-label="Search references"><button class="text-btn" id="refsAll" type="button">Select all</button><button class="text-btn" id="refsRecommended" type="button">Recommended</button><button class="text-btn" id="refsNone" type="button">None</button><button class="text-btn" id="refsReload" type="button" title="Re-read the selected pages without leaving this step">↻ Reload</button></div>
+      <div class="toolbar"><input class="search" id="searchRefs" placeholder="Search reference frames…" aria-label="Search references"><button class="text-btn" id="refsAll" type="button">Select all</button><button class="text-btn" id="refsRecommended" type="button">Recommended</button><button class="text-btn" id="refsNone" type="button">None</button><button class="text-btn" id="refsReload" type="button" title="Re-read the selected pages without leaving this step">↻ Reload</button><select class="search ref-css" id="refCssMode" aria-label="Reference CSS mode"><option value="standalone">Reference CSS: Standalone</option><option value="shared">Reference CSS: Shared tokens.css</option></select></div>
       <div class="ref-grid" id="refGrid"></div>
       <div class="empty hide" id="refEmpty">No top-level frames on the selected pages. Go back and add a page with frames.</div>
       <div class="info"><span class="i">ⓘ</span><span><strong>Reload picks up your edits.</strong> After you add, rename or delete frames on these pages, press Reload — the list and the previews refresh in place, and your selection is kept for the frames that are still there. Reference HTML is visual evidence, not the source of truth for token values; if you don't need examples, select <strong>None</strong>.</span></div>
@@ -176,7 +176,7 @@ const S = {
   fileName: '', pages: [], collections: [], comps: [], counts: {},
   saved: null, engine: null, steps: [], creativity: 0, adherence: 0,
   selPages: new Set(), selAssets: new Set(['tokens', 'styles']),
-  frames: [], selRefs: new Set(), recommendedRefs: new Set(), thumbs: {}, refLoaded: false, reloading: false, refNote: '',
+  frames: [], selRefs: new Set(), recommendedRefs: new Set(), refCss: 'standalone', thumbs: {}, refLoaded: false, reloading: false, refNote: '',
   progress: 0, building: false, built: false, analysis: null,
   files: [], incoming: null, errors: [],
   srcQuery: '', refQuery: ''
@@ -215,7 +215,7 @@ function setStep(i) {
 function drawFoot() {
   const n = $('next');
   if (S.step === 0) { n.textContent = 'References →'; n.disabled = S.selPages.size === 0; $('footNote').textContent = S.selPages.size ? `${S.selPages.size} page(s) and ${S.selAssets.size} asset group(s) selected.` : 'Select at least one page to continue.'; }
-  if (S.step === 1) { n.textContent = 'Build →'; n.disabled = false; $('footNote').textContent = S.selRefs.size ? `${S.selRefs.size} reference frame(s) will be exported as HTML.` : 'Building without reference frames.'; }
+  if (S.step === 1) { n.textContent = 'Build →'; n.disabled = false; const cssMode = S.refCss === 'shared' ? 'shared tokens.css' : 'standalone'; $('footNote').textContent = S.selRefs.size ? `${S.selRefs.size} reference frame(s) · ${cssMode}.` : 'Building without reference frames.'; }
   if (S.step === 2) { n.textContent = 'Building…'; n.disabled = true; $('footNote').textContent = 'Extraction is running in the plugin sandbox.'; }
 }
 
@@ -245,7 +245,7 @@ function drawSources() {
   drawFoot();
 }
 
-// ---------- AI creativity level (discrete slider, five positions) ----------
+// ---------- AI creativity level (discrete slider, six levels) ----------
 function drawAdherence() {
   const steps = S.steps, n = steps.length;
   if (!n) return;
@@ -254,15 +254,15 @@ function drawAdherence() {
   const edge = i => i === 0 ? ' first' : i === n - 1 ? ' last' : '';
   $('adhNums').innerHTML = steps.map(s => `<span class="sl-num${s.position === cur ? ' on' : ''}${edge(s.position)}" style="left:${pct(s.position)}">${s.position}</span>`).join('');
   $('adhMarks').innerHTML = steps.map(s => `<span class="sl-mark${s.position === cur ? ' on' : s.position < cur ? ' pass' : ''}" style="left:${pct(s.position)}"></span>`).join('');
-  $('adhLabels').innerHTML = steps.map(s => `<span class="sl-label${s.position === cur ? ' on' : ''}${edge(s.position)}" style="left:${pct(s.position)}"><b>${esc(s.label)}</b><span>${s.rule}% Rule Adherence</span><span>${s.creative}% Creative Freedom</span></span>`).join('');
+  $('adhLabels').innerHTML = steps.map(s => `<span class="sl-label${s.position === cur ? ' on' : ''}${edge(s.position)}" style="left:${pct(s.position)}"><b>${esc(s.label)}</b><span>${s.creativity}% Creative freedom</span></span>`).join('');
   $('adhFill').style.width = pct(cur);
   const st = steps[cur];
-  $('adhRule').textContent = st.rule + '% Rule Adherence';
-  $('adhFree').textContent = st.creative + '% Creative Freedom';
+  $('adhRule').textContent = 'Hard design-system constraints enforced';
+  $('adhFree').textContent = st.creativity + '% creative freedom';
   const track = $('adhTrack');
   track.setAttribute('aria-valuemin', '0'); track.setAttribute('aria-valuemax', String(n - 1));
   track.setAttribute('aria-valuenow', String(cur));
-  track.setAttribute('aria-valuetext', `${st.label}: ${st.rule}% rule adherence, ${st.creative}% creative freedom`);
+  track.setAttribute('aria-valuetext', `${st.label}: ${st.creativity}% creative freedom; hard design-system constraints are enforced`);
   $('adhSlider').classList.remove('hide'); $('adhSum').classList.remove('hide');
   S.adherence = st.adherence;
 }
@@ -452,6 +452,7 @@ function selObj() {
     refFrameIds: [...S.selRefs],
     adherence: S.adherence,
     refEmbedImages: false,
+    refCss: S.refCss,
     refMatchColors: true,
     refEngine: 'fig-engine',
     depPolicy: 'auto_include',
@@ -510,6 +511,7 @@ function handle(m) {
     S.loaded = true; S.fileName = d.fileName || 'Figma file'; S.pages = d.pages || []; S.collections = d.collections || []; S.comps = d.comps || []; S.counts = d.counts || {}; S.saved = d.saved || null; S.engine = d.engine || null;
     $('filePill').textContent = S.fileName;
     S.steps = d.steps || [];
+    S.refCss = S.saved && S.saved.refCss === 'shared' ? 'shared' : 'standalone'; $('refCssMode').value = S.refCss;
     const savedLevel = S.saved && S.saved.adherence;
     const remembered = S.steps.findIndex(s => s.adherence === savedLevel);
     if (remembered >= 0) S.creativity = remembered;
@@ -597,6 +599,7 @@ $('refsAll').onclick = () => { S.selRefs = new Set(S.frames.map(f => f.id)); dra
 $('refsRecommended').onclick = () => { S.selRefs = new Set(S.recommendedRefs); drawRefs(); };
 $('refsNone').onclick = () => { S.selRefs = new Set(); drawRefs(); };
 $('refsReload').onclick = () => { if (S.reloading || S.building) return; S.reloading = true; S.refNote = ''; drawRefs(); loadFrames(); };
+$('refCssMode').onchange = e => { S.refCss = e.target.value === 'shared' ? 'shared' : 'standalone'; drawFoot(); };
 
 // ---------- Resize the plugin window ----------
 (function () {

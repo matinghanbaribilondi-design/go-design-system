@@ -2,14 +2,19 @@
   "name": "global-design-system-plugin",
   "version": "0.10.0",
   "private": true,
-  "description": "Figma <-> design.md compiler with a pluggable Reference engine",
+  "description": "One-way Figma -> design-system package exporter with a pluggable Reference engine",
   "scripts": {
     "build": "node scripts/build.mjs",
     "assemble": "node scripts/build.mjs --assemble-only",
     "build:no-engine": "node scripts/build.mjs --no-engine",
     "sync-engine": "node scripts/sync-fig-engine.mjs",
     "sync-engine:build": "node scripts/sync-fig-engine.mjs --build",
-    "test": "node tests/core.test.js && node tests/figma-mock.test.js"
+    "test": "node tests/core.test.js && node tests/figma-mock.test.js && node tests/ui-static.test.js && node tests/runtime-static.test.js && node tests/golden.test.js && node tests/verify.test.js && node tests/verify-ui.test.js && node tests/zip-roundtrip.test.js && node tests/benchmark-ai.test.js && node tests/docs-consistency.test.js",
+    "verify": "node scripts/verify.mjs",
+    "verify:ui": "node scripts/verify.mjs ui",
+    "golden": "node scripts/update-golden.mjs",
+    "benchmark": "node scripts/benchmark.mjs",
+    "benchmark:ai": "node scripts/benchmark-ai.mjs"
   },
   "devDependencies": { "esbuild": "^0.25.0" }
 }

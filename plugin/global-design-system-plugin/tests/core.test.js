@@ -1,7 +1,7 @@
 // Run: node tests/core.test.js   (no dependencies)
 const assert = require('node:assert/strict');
 const { parseContext, buildContext, ctxMd, contentMd, planDependencies, applyPolicy, gen, iconScore, inferFromFrames, buildPrompt, promptData, referenceMd, iconsMd, tokensCss, aiControlMd, levelLine, referenceFiles, refDoc, enrichModel} = require('../src/core.js');
-let n = 0; const fails = []; const t = (name, fn) => { try { fn(); n++; console.log('✓ ' + name); } catch (e) { fails.push(name); console.log('✗ ' + name + ': ' + String(e.message).split('\n')[0].slice(0, 200)); } };
+let n = 0; const fails = []; const t = (name, fn) => { try { fn(); n++; console.log('✓ ' + name); } catch (e) { fails.push(name); console.log('✗ ' + name + ': ' + String(e.message).split('\n').slice(0, 4).join(' | ').slice(0, 500)); } };
 
 // ---- Context
 t('context omitted: valid, no fabricated content', () => {
@@ -87,7 +87,9 @@ t('auto mode: figma facts + marked inference, no user claims', () => {
 });
 t('content pack: content.md only when requested; unknowns stay unknown; max 7 md files', () => {
   const M = base(); M.context = buildContext({ product: 'Acme' }, ['x']);
-  assert.ok(!gen(M, 'standard', [], []).some(f => f.path === 'content.md'));
+  const defaultFiles = gen(M, 'standard', [], []);
+  assert.ok(!defaultFiles.some(f => f.path === 'content.md'));
+  assert.ok(defaultFiles.every(f => typeof f.content !== 'string' || !/content\.md/.test(f.content)), 'default package never references a missing content.md');
   M.contentPack = true; const files = gen(M, 'standard', [], []);
   const c = files.find(f => f.path === 'content.md').content;
   assert.match(c, /Name: Acme/); assert.match(c, /## To complete[\s\S]*Users/); assert.match(c, /Guidance for continuing/); assert.ok(!/_Not provided\._\n\n## Goals/.test(c), 'no empty headings');
@@ -230,7 +232,8 @@ t('token resolution: equal values stay ambiguous, explicit bindings win, and fon
   const V = core.validate(Object.assign(M, { tokens: [custom] }), []); assert.ok(V.issues.some(i => i.code === 'TOKEN_INVALID_CSS_VALUE' && i.severity === 'error'));
 });
 t('token map: source, alias, mode and CSS counts are explainable and share one manifest calculation', () => {
-  const core = require('../src/core.js'), M = cssM(), f = core.gen(M, 'full', [], []), TM = JSON.parse(f.find(x => x.path === 'metadata/token-map.json').content), man = JSON.parse(f.find(x => x.path === 'manifest.json').content);
+  const core = require('../src/core.js'), M = cssM(), f = core.gen(M, 'full', [], []), TM = JSON.parse(f.find(x => x.path === 'metadata/token-map.json').content), man = JSON.parse(f.find(x => x.path === 'manifest.json').content), report = JSON.parse(f.find(x => x.path === 'validation-report.json').content);
+  assert.equal(man.validation.errorCount, report.errors + report.packageErrorCount); assert.equal(man.validation.warningCount, report.warnings + report.packageWarningCount, 'manifest validation includes package findings');
   assert.equal(TM.stats.sourceTokens, M.tokens.length); assert.equal(TM.stats.aliasTokens, 1); assert.equal(TM.stats.modeValues.total, M.tokens.length * 2); assert.equal(TM.stats.modeValues.resolved, M.tokens.length * 2); assert.equal(TM.stats.cssVariables, M.tokens.length); assert.equal(TM.stats.notEmitted, 0); assert.equal(TM.stats.ambiguousValues, 1); assert.deepEqual(man.stats.tokens, TM.stats);
   const theme = TM.collections.find(c => c.name === 'Theme'); assert.equal(theme.defaultMode, 'Light'); assert.equal(theme.modes[1].theme, 'dark'); assert.equal(TM.tokens.find(t => t.name === 'Color/Primary').roleStatus, 'observed'); assert.match(f.find(x => x.path === 'tokens.md').content, /## Accounting/);
   M.tokens.push(mkTok('Color/Broken', 'color', 'COLOR', { Light: { status: 'unresolved', chain: ['Missing'] }, Dark: { status: 'unresolved', chain: ['Missing'] } }));
@@ -285,15 +288,35 @@ t('reference index: contextual component, pattern, token and link retrieval stay
     ref('fr:1', 'Home', '<div><button type="button" data-component="Size=Medium" data-component-id="v:medium" data-component-family="Button" data-component-family-id="set:1" data-variant-size="Medium"><span>Buy</span></button></div>', ['fr:2', 'fr:missing']),
     ref('fr:2', 'Settings', '<div><p>Preferences</p></div>')
   ];
-  const files = core.gen(M, 'standard', [], []), index = JSON.parse(files.find(f => f.path === 'components/index.json').content), home = index.references.entries.find(e => e.id === 'fr:1');
-  assert.equal(index.references.stats.references, 2); assert.equal(index.references.stats.withComponents, 1); assert.equal(index.references.stats.resolvedLinks, 1); assert.equal(index.references.stats.unresolvedLinks, 1);
-  assert.equal(home.file, 'reference/Home.html'); assert.deepEqual(home.componentIds, ['v:medium']); assert.deepEqual(home.familyIds, ['set:1']); assert.equal(home.components[0].instanceId, 'fr:1');
-  assert.equal(home.components[0].variantProperties.Size, 'Medium'); assert.deepEqual(home.vars, ['--color-primary']); assert.equal(home.patterns.length, 1);
+  const files = core.gen(M, 'standard', [], []), index = JSON.parse(files.find(f => f.path === 'components/index.json').content), refIndex = JSON.parse(files.find(f => f.path === 'reference/index.json').content), home = refIndex.entries.find(e => e.id === 'fr:1');
+  assert.equal(index.references.index, 'reference/index.json'); assert.equal(Object.prototype.hasOwnProperty.call(index.references, 'entries'), false, 'nested index is a pointer, not a duplicate');
+  assert.equal(refIndex.cssMode.resolved, 'standalone'); assert.equal(refIndex.role, 'source-evidence-index'); assert.deepEqual(refIndex.classification.sourceEvidence, refIndex.entries.map(e => e.file)); assert.deepEqual(refIndex.classification.generatedGuides, []);
+  assert.equal(refIndex.stats.references, 2); assert.equal(refIndex.stats.withComponents, 1); assert.equal(refIndex.stats.resolvedLinks, 1); assert.equal(refIndex.stats.unresolvedLinks, 1);
+  assert.equal(home.file, 'reference/Home.html'); assert.deepEqual(home.componentIds, ['v:medium']); assert.deepEqual(home.familyIds, ['set:1']); assert.equal(home.components[0].instanceId, null, 'fallback HTML does not fabricate instance IDs');
+  assert.equal(home.components[0].variantProperties.size, 'Medium', 'HTML markers expose case-insensitive attribute axes'); assert.deepEqual(home.vars, ['--color-primary']); assert.equal(home.patterns.length, 1);
+  assert.deepEqual(home.tags, []); assert.equal(home.tagStatus, 'not-provided-by-source'); assert.deepEqual(home.modes, ['Dark', 'Light']);
+  assert.deepEqual(home.structureSummary, { rootTags: ['div'], componentInstances: 1, patternIds: home.patterns.map(p => p.id) });
+  assert.equal(home.extraction.status, 'complete'); assert.equal(home.extraction.evidenceLevel, 'reference-html');
   assert.deepEqual(home.links, [{ destinationId: 'fr:2', status: 'resolved', file: 'reference/Settings.html' }, { destinationId: 'fr:missing', status: 'unresolved-in-package', file: null }]);
-  assert.match(files.find(f => f.path === 'SKILL.md').content, /## Contextual retrieval[\s\S]*Filter `references\.entries`/);
+  assert.match(files.find(f => f.path === 'SKILL.md').content, /## Contextual retrieval[\s\S]*Start in `reference\/index\.json`[\s\S]*Do not open every reference/);
   assert.ok(!files.some(f => f.path === 'reference/index.html')); assert.ok(!core.lintPackage(files, M).findings.some(i => i.code.indexOf('REFERENCE_INDEX_') === 0));
   const damaged = files.map(f => f.path === 'components/index.json' ? Object.assign({}, f, { content: f.content.replace('"withComponents": 1', '"withComponents": 2') }) : f);
   assert.ok(core.lintPackage(damaged, M).findings.some(i => i.code === 'REFERENCE_INDEX_STATS_MISMATCH'));
+});
+t('reference CSS: standalone is default; shared links canonical tokens and falls back safely', () => {
+  const core = require('../src/core.js'), make = () => {
+    const M = cssM();
+    M.refs = [{ id: 'fr:1', name: 'Home', page: 'Screens', w: 390, h: 844, nodes: 1, truncated: false, body: '<div class="home">Home</div>', css: '.home{padding:var(--spacing-16)}', files: [], engine: 'fig-engine@test', rtl: false, links: [], fonts: {}, vars: ['--color-primary', '--spacing-16'], components: [], structure: null, notes: [] }];
+    return M;
+  };
+  const M = make(), standaloneFiles = core.gen(M, 'standard', [], []), standalone = standaloneFiles.find(f => f.path === 'reference/Home.html').content, standaloneIndex = JSON.parse(standaloneFiles.find(f => f.path === 'reference/index.json').content);
+  assert.ok(!standalone.includes('href="../tokens.css"')); assert.match(standalone, /:root \{[\s\S]*--color-primary:/); assert.equal(standaloneIndex.cssMode.resolved, 'standalone');
+  const S = make(); S.refCss = 'shared'; const sharedFiles = core.gen(S, 'standard', [], []), shared = sharedFiles.find(f => f.path === 'reference/Home.html').content, sharedIndex = JSON.parse(sharedFiles.find(f => f.path === 'reference/index.json').content), again = core.gen(S, 'standard', [], []);
+  assert.ok(shared.includes('<link rel="stylesheet" href="../tokens.css">'), 'shared mode uses a deterministic relative path'); assert.ok(!/:root \{[\s\S]*--color-primary:/.test(shared), 'shared mode does not duplicate token definitions'); assert.equal(sharedIndex.cssMode.active, true); assert.match(sharedFiles.find(f => f.path === 'tokens.css').content, /\[data-theme="dark"\]/, 'shared stylesheet carries mode definitions'); assert.deepEqual(again, sharedFiles, 'shared output is deterministic');
+  const missing = make(); missing.tokens = []; missing.styles = { text: [], paint: [], effect: [] }; missing.refCss = 'shared'; const missingFiles = core.gen(missing, 'standard', [], []), missingIndex = JSON.parse(missingFiles.find(f => f.path === 'reference/index.json').content);
+  assert.equal(missingIndex.cssMode.requested, 'shared'); assert.equal(missingIndex.cssMode.resolved, 'standalone'); assert.match(missingIndex.cssMode.fallback, /tokens\.css/); assert.ok(!missingFiles.find(f => f.path === 'reference/Home.html').content.includes('href="../tokens.css"'));
+  const undefinedVar = make(); undefinedVar.refs[0].vars = ['--not-in-package']; undefinedVar.refCss = 'shared'; const undefinedIndex = JSON.parse(core.gen(undefinedVar, 'standard', [], []).find(f => f.path === 'reference/index.json').content);
+  assert.equal(undefinedIndex.cssMode.active, false); assert.match(undefinedIndex.cssMode.fallback, /--not-in-package/);
 });
 // ---- Icon rules
 t('icon detection: standard sizes and vector-only shapes (20×20, vector) are icons; rules are tunable', () => {
@@ -321,17 +344,20 @@ t('package: ai-control.md ships with the chosen level; design.md points to it', 
   assert.match(f.find(x => x.path === 'ai-control.md').content, /adherence_level: 6/); assert.match(f.find(x => x.path === 'design.md').content, /adherence_level/); assert.match(f.find(x => x.path === 'tokens.css').content, /ai-control\.md/);
   assert.match(gen(cssM(), 'standard', [], []).find(x => x.path === 'ai-control.md').content, /adherence_level: 3/);
 });
-t('ai control: the slider has exactly five positions 0-4, each a real level of ai-control.md', () => {
-  const s = require('../src/core.js').levelPicker();
-  assert.deepEqual(s.map(x => x.position), [0, 1, 2, 3, 4], 'five discrete positions');
-  assert.deepEqual(s.map(x => x.label), ['Strict', 'Conservative', 'Balanced', 'Creative', 'Open']);
-  assert.deepEqual(s.map(x => x.rule), [100, 80, 60, 40, 20], 'rule adherence as specified');
-  assert.deepEqual(s.map(x => x.creative), [0, 20, 40, 60, 80], 'creative freedom as specified');
-  assert.deepEqual(s.map(x => x.adherence), [0, 2, 5, 7, 10], 'each position picks a real level of the file');
-  assert.deepEqual(s.map(x => x.levelName), ['Strict', 'Faithful', 'Flexible', 'Creative', 'Open']);
+t('ai control: exactly six UI levels expose creativity without weakening hard constraints', () => {
+  const core = require('../src/core.js'), s = core.levelPicker();
+  assert.deepEqual(s.map(x => x.position), [0, 1, 2, 3, 4, 5], 'six discrete positions');
+  assert.deepEqual(s.map(x => x.label), ['Strict', 'Conservative', 'Balanced', 'Creative', 'Advanced Creative', 'Open']);
+  assert.deepEqual(s.map(x => x.creativity), [0, 20, 40, 60, 80, 100], 'creative freedom as approved');
+  assert.equal(s[5].creativity, 100, 'Open is exactly 100% creative freedom');
+  assert.deepEqual(s.map(x => x.adherence), [0, 2, 5, 7, 9, 10], 'documented internal mapping');
+  assert.deepEqual(s.map(x => x.levelName), ['Strict', 'Faithful', 'Flexible', 'Creative', 'Bold', 'Open']);
   s.forEach(x => {
-    assert.equal(x.rule + x.creative, 100);
-    assert.match(aiControlMd(x.adherence), new RegExp('adherence_level: ' + x.adherence));
+    assert.equal(x.hardConstraints, true); assert.equal(Object.prototype.hasOwnProperty.call(x, 'rule'), false, 'creativity is not exposed as a rule probability');
+    const control = aiControlMd(x.adherence);
+    assert.match(control, new RegExp('adherence_level: ' + x.adherence));
+    assert.match(control, /Hard constraints never relax/);
+    assert.match(control, new RegExp('\\| ' + x.position + ' \\| ' + x.label + ' \\| ' + x.creativity + '% \\| ' + x.adherence + ' \\|'));
   });
 });
 t('prompt: adherence section tells the AI to read the file and gives a fallback summary', () => {  const p = buildPrompt({ adherence: 8 }, pdata); assert.match(p, /# CREATIVITY CONTROL/); assert.match(p, /Adherence level: 8 \/ 10/); assert.match(p, /ai-control\.md/); assert.match(p, /the file wins/); assert.match(p, /Exploratory/);
@@ -404,9 +430,9 @@ t('package lint: JSON, Markdown, HTML and CSS defects are structured findings wi
 t('package lint: manifest/token mismatches and omitted mode selectors fail package integrity', () => {
   const core = require('../src/core.js'), M = cssM(), f = core.gen(M, 'full', [], []);
   assert.deepEqual(core.lintPackage(f, M).findings, []);
-  const man = f.find(x => x.path === 'manifest.json'), data = JSON.parse(man.content), id = Object.keys(data.entities).find(k => data.entities[k].source.type === 'figma_variable'); data.entities[id].output.cssVar = '--not-real'; man.content = JSON.stringify(data);
+  const man = f.find(x => x.path === 'manifest.json'), data = JSON.parse(man.content), id = Object.keys(data.entities).find(k => data.entities[k].source.type === 'figma_variable'); data.entities[id].output.cssVar = '--not-real'; data.inventory.tokens = 999; man.content = JSON.stringify(data);
   const css = f.find(x => x.path === 'tokens.css'); css.content = css.content.replace('[data-theme="dark"]', '[data-theme="night"]');
-  const codes = core.lintPackage(f, M).findings.map(i => i.code); assert.ok(codes.includes('MANIFEST_TOKEN_MISSING')); assert.ok(codes.includes('THEME_MODE_MISSING'));
+  const codes = core.lintPackage(f, M).findings.map(i => i.code); assert.ok(codes.includes('MANIFEST_TOKEN_MISSING')); assert.ok(codes.includes('MANIFEST_INVENTORY_MISMATCH')); assert.ok(codes.includes('THEME_MODE_MISSING'));
 });
 t('package quality: realistic file has no literal values or package-integrity findings, but warnings prevent a perfect self-check', () => {
   const core = require('../src/core.js'), M = require('./fixture-realistic.js')(), f = core.gen(M, 'standard', [], []), by = p => (f.find(x => x.path === p) || {}).content || '';
